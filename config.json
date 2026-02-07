@@ -1,0 +1,35 @@
+{
+  "navidrome": {
+    "url": "http://navidrome-ip/",
+    "username": "navidrome_username",
+    "password": "navidrome_password"
+  },
+  "octofiestarr": {
+    "url": "http://octofiesta-ip:port/"
+  },  
+  "ai": {
+    "api_key": "llm_api_key",
+    "model": "llm model",
+    "backend": "gemini", #can use "openai" endpoints or "gemini"
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", # gemini- feel free to change
+    "max_context_songs": 500, # context for song preferences (500 songs sent to AI by default)
+    "max_output_tokens": 65535 # adjust based on LLM rate limiting
+  },
+  "performance": {
+    "album_batch_size": 500,
+    "max_albums_scan": 10000,
+    "scan_timeout": 30,
+    "download_delay_seconds": 6,
+    "post_scan_delay_seconds": 2
+  },
+  "lastfm": {
+    "enabled": true,
+    "api_key": "lastfm_api_key",
+    "username": "lastfm_username"
+  },
+  "listenbrainz": {
+    "enabled": true,
+    "username": "listenbrainz_username",
+    "token": "listenbrainz_token"
+  }
+}
