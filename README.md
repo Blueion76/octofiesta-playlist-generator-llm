@@ -29,17 +29,20 @@ An AI-powered music discovery system that generates personalized playlists by an
 
 ### 1. Clone the Repository
 
+```
 git clone https://github.com/Blueion76/octofiesta-playlist-generator-llm
 cd spotify-clone
-
+```
 ### 2. Install Python Dependencies
 
+```
 pip install openai requests aiohttp
-
+```
 For Gemini SDK support (recommended):
 
+```
 pip install google-genai
-
+```
 ### 3. Configure the Application
 
 Create a `config.json` file in the same directory as `spotify_clone.py`:
