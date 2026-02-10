@@ -11,7 +11,7 @@ on:
       - main
 
 env:
-  REGISTRY_IMAGE: Blueion76/Octogen
+  REGISTRY_IMAGE: blueion76/octogen
 
 jobs:
   build:
