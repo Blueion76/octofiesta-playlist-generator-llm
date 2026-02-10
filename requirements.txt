@@ -1,0 +1,18 @@
+# Core Dependencies
+# OpenAI library (compatible with Gemini, Groq, and other providers)
+openai>=1.12.0,<2.0.0
+
+# HTTP clients
+requests>=2.31.0,<3.0.0
+aiohttp>=3.9.0,<4.0.0
+
+# Google Gemini Native SDK (recommended for Gemini)
+google-genai>=1.0.0,<2.0.0
+
+# Note: No additional dependencies needed!
+# The script uses only Python standard library for:
+# - json, os, sys, pathlib
+# - logging, hashlib, secrets
+# - datetime, time, asyncio
+# - sqlite3, fcntl, atexit
+# - typing, collections, re, urllib
