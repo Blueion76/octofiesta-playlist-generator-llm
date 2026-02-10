@@ -16,7 +16,7 @@ FROM python:3.12-slim
 LABEL org.opencontainers.image.title="OctoGen" \
       org.opencontainers.image.description="AI-Powered Music Discovery Engine for Navidrome" \
       org.opencontainers.image.authors="OctoGen Contributors" \
-      org.opencontainers.image.url="https://github.com/Blueion76/octogen" \
+      org.opencontainers.image.url="https://github.com/Blueion76/Octogen" \
       org.opencontainers.image.source="https://github.com/Blueion76/Octogen" \
       org.opencontainers.image.documentation="https://github.com/Blueion76/Octogen/blob/main/README.md" \
       org.opencontainers.image.licenses="MIT"
