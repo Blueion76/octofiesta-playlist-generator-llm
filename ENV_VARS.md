@@ -52,8 +52,8 @@ NAVIDROME_PASSWORD=your_secure_password
 **Format**: `http://hostname:port`  
 **Examples**:
 ```bash
-OCTOFIESTA_URL=http://192.168.1.100:8080
-OCTOFIESTA_URL=http://octo-fiesta:8080
+OCTOFIESTA_URL=http://192.168.1.100:5274
+OCTOFIESTA_URL=http://octo-fiesta:5274
 ```
 **Notes**:
 - Required for automatic downloading of missing tracks
@@ -357,7 +357,7 @@ OCTOGEN_DATA_DIR=/data
 NAVIDROME_URL=http://192.168.1.100:4533
 NAVIDROME_USER=admin
 NAVIDROME_PASSWORD=secret123
-OCTOFIESTA_URL=http://192.168.1.100:8080
+OCTOFIESTA_URL=http://192.168.1.100:5274
 AI_API_KEY=AIzaSyABC123...
 ```
 
@@ -366,7 +366,7 @@ AI_API_KEY=AIzaSyABC123...
 NAVIDROME_URL=http://192.168.1.100:4533
 NAVIDROME_USER=admin
 NAVIDROME_PASSWORD=secret123
-OCTOFIESTA_URL=http://192.168.1.100:8080
+OCTOFIESTA_URL=http://192.168.1.100:5274
 
 AI_BACKEND=openai
 AI_BASE_URL=https://api.groq.com/openai/v1
@@ -379,7 +379,7 @@ AI_API_KEY=gsk_abc123...
 NAVIDROME_URL=http://192.168.1.100:4533
 NAVIDROME_USER=admin
 NAVIDROME_PASSWORD=secret123
-OCTOFIESTA_URL=http://192.168.1.100:8080
+OCTOFIESTA_URL=http://192.168.1.100:5274
 
 AI_BACKEND=openai
 AI_BASE_URL=http://host.docker.internal:11434/v1
@@ -395,7 +395,7 @@ NAVIDROME_USER=admin
 NAVIDROME_PASSWORD=secret123
 
 # Octo-Fiesta
-OCTOFIESTA_URL=http://192.168.1.100:8080
+OCTOFIESTA_URL=http://192.168.1.100:5274
 
 # AI (Gemini)
 AI_API_KEY=AIzaSyABC123...
