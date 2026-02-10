@@ -407,8 +407,6 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
 - **[ENV_VARS.md](ENV_VARS.md)** - Complete variable reference
-- **[GITHUB_WEB_UI_SETUP.md](GITHUB_WEB_UI_SETUP.md)** - Setup via web interface
-- **[DOCKER_HUB_README.md](DOCKER_HUB_README.md)** - Docker Hub documentation
 
 ---
 
