@@ -1,228 +1,458 @@
-# Spotify Clone - Automated Music Discovery Engine
+# 🎵 OctoGen - AI-Powered Music Discovery for Navidrome
 
-An AI-powered music discovery system that generates personalized playlists by analyzing your Navidrome music library and leveraging AI recommendations (OpenAI/Gemini), Last.fm, and ListenBrainz. Please note I used Claude Code to generate this script. Any pull requests are welcome.
+[![Docker Hub](https://img.shields.io/docker/pulls/blueion76/octogen?logo=docker)](https://hub.docker.com/r/blueion76/octogen)
+[![GitHub Container Registry](https://img.shields.io/badge/ghcr-latest-blue?logo=github)](https://github.com/Blueion76/Octogen/pkgs/container/octogen)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-## Features
+**OctoGen** automatically generates personalized music playlists for your Navidrome server using AI. It creates 11 curated playlists with over 350 songs, seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
 
-- **AI-Powered Recommendations**: Uses Gemini or OpenAI endpoints to generate 11 unique playlists based on your listening preferences
-- **Star Rating Integration**: Automatically excludes songs rated 1-2 stars from recommendations
-- **Smart Caching**: Daily cache invalidation with SQLite database for ratings
-- **Automatic Music Discovery**: Integrates with octo-fiesta to download recommended tracks
-- **Multi-Source Recommendations**: Optional Last.fm and ListenBrainz integration
-- **Duplicate Prevention**: Tracks processed songs to avoid redundant downloads
-- **Async Processing**: Parallel album scanning for improved performance
-- **Dry Run Mode**: Test without making actual downloads or playlist changes
-- **Instance Locking**: Prevents multiple simultaneous runs
+---
 
-## Prerequisites
+## ✨ Features
 
-### Required Services
-- [**Navidrome**](https://www.navidrome.org/): Self-hosted music server with Subsonic API support
-- [**octo-fiesta**](https://github.com/V1ck3s/octo-fiesta): Music download service with Subsonic API endpoints
-- **LLM API Key**: Either Google Gemini API or OpenAI-compatible endpoint
+### 🤖 AI-Powered Recommendations
+- **Multiple AI providers**: Gemini, OpenAI, Groq, Ollama, OpenRouter
+- **Smart context caching**: Efficient, low-cost API usage
+- **Variety seed**: Different recommendations every day
 
-### Optional Services
-- **Last.fm API**: For additional recommendations (requires API key)
-- **ListenBrainz**: For collaborative filtering recommendations
+### 🎵 Generated Playlists
+- **Discovery Weekly** (50 songs) - New music discoveries
+- **Daily Mix 1-6** (30 songs each) - Genre-based mixes
+- **Chill Vibes** (30 songs) - Relaxing tracks
+- **Workout Energy** (30 songs) - High-energy music
+- **Focus Flow** (30 songs) - Ambient/instrumental
+- **Drive Time** (30 songs) - Upbeat driving music
 
-## Installation
+**Total: 11 playlists, 350+ songs automatically curated!**
 
-### 1. Clone the Repository
+### 🎯 Smart Features
+- **Star rating filtering**: Excludes 1-2 star rated songs
+- **Duplicate detection**: No repeated tracks across playlists
+- **Automatic downloads**: Missing songs fetched via Octo-Fiesta
+- **Daily cache**: Efficient library scanning
+- **Async operations**: Fast, parallel processing
+- **Last.fm & ListenBrainz**: Optional integration
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Navidrome** server running
+- **Octo-Fiesta** configured for downloads
+- **AI API key** (Gemini recommended - free tier available)
+
+### 1. Get Gemini API Key (Free)
+Visit: [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+
+### 2. Create Configuration
+
+```bash
+# Create .env file
+cat > .env << 'EOF'
+# Required
+NAVIDROME_URL=http://192.168.1.100:4533
+NAVIDROME_USER=admin
+NAVIDROME_PASSWORD=your_password
+OCTOFIESTA_URL=http://192.168.1.100:5274
+AI_API_KEY=your_llm_api_key
+
+# Optional
+AI_MODEL=gemini-2.5-flash
+AI_BACKEND=gemini
+LOG_LEVEL=INFO
+EOF
+```
+
+### 3. Run with Docker
+
+```bash
+# Pull the image
+docker pull blueion76/octogen:latest
+
+# Run OctoGen
+docker run -d \
+  --name octogen \
+  -v octogen-data:/data \
+  --env-file .env \
+  --restart unless-stopped \
+  blueion76/octogen:latest
+
+# Check logs
+docker logs -f octogen
+```
+
+### 4. Check Your Navidrome
+Open Navidrome and find your new playlists! 🎉
+
+---
+
+## 🐳 Docker Compose (Recommended)
+
+```yaml
+version: '3.8'
+
+services:
+  octogen:
+    image: blueion76/octogen:latest
+    container_name: octogen
+    volumes:
+      - octogen-data:/data
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  octogen-data:
+```
+
+Run:
+```bash
+docker-compose up -d
+docker-compose logs -f octogen
+```
+
+---
+
+## 🔧 Configuration
+
+### Required Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `NAVIDROME_URL` | Navidrome server URL | `http://192.168.1.100:4533` |
+| `NAVIDROME_USER` | Navidrome username | `admin` |
+| `NAVIDROME_PASSWORD` | Navidrome password | `your_password` |
+| `OCTOFIESTA_URL` | Octo-Fiesta server URL | `http://192.168.1.100:5274` |
+| `AI_API_KEY` | AI provider API key | `your_llm_api_key` |
+
+### Optional Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AI_MODEL` | `gemini-2.5-flash` | AI model to use |
+| `AI_BACKEND` | `gemini` | Backend: `gemini` or `openai` |
+| `AI_BASE_URL` | (none) | Custom API endpoint |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+
+**See [ENV_VARS.md](ENV_VARS.md) for complete reference.**
+
+---
+
+## 🎯 AI Provider Examples
+
+### Gemini (Recommended - Free Tier)
+```bash
+AI_BACKEND=gemini
+AI_MODEL=gemini-2.5-flash
+AI_API_KEY=your_llm_api_key
+```
+**Get key:** [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+
+### Groq (Fast & Free Tier)
+```bash
+AI_BACKEND=openai
+AI_BASE_URL=https://api.groq.com/openai/v1
+AI_MODEL=llama-3.3-70b-versatile
+AI_API_KEY=your_groq_api_key
+```
+**Get key:** [https://console.groq.com](https://console.groq.com)
+
+### OpenAI (Official)
+```bash
+AI_BACKEND=openai
+AI_MODEL=gpt-4o
+AI_API_KEY=your_openai_api_key
+```
+
+### Ollama (Local, Offline)
+```bash
+AI_BACKEND=openai
+AI_BASE_URL=http://host.docker.internal:11434/v1
+AI_MODEL=llama3.2
+AI_API_KEY=ollama
+```
+
+### OpenRouter (100+ Models)
+```bash
+AI_BACKEND=openai
+AI_BASE_URL=https://openrouter.ai/api/v1
+AI_MODEL=anthropic/claude-3.5-sonnet
+AI_API_KEY=your_openrouter_api_key
+```
+
+---
+
+## 🔄 Scheduling
+
+### Run Daily at 6 AM
+
+**Docker Compose with cron:**
+```yaml
+services:
+  octogen:
+    image: blueion76/octogen:latest
+    container_name: octogen
+    volumes:
+      - octogen-data:/data
+    env_file:
+      - .env
+    command: |
+      sh -c "while true; do
+        python octogen.py
+        sleep 86400
+      done"
+```
+
+**System cron:**
+```bash
+# Edit crontab
+crontab -e
+
+# Add line:
+0 6 * * * docker start octogen
+```
+
+**Kubernetes CronJob:**
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: octogen
+spec:
+  schedule: "0 6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: octogen
+            image: blueion76/octogen:latest
+            envFrom:
+            - secretRef:
+                name: octogen-secrets
+          restartPolicy: OnFailure
+```
+
+---
+
+## 📊 How It Works
+
+1. **Analyzes your Navidrome library**
+   - Reads starred/favorited songs
+   - Identifies top artists and genres
+   - Caches ratings (daily refresh)
+
+2. **Generates AI recommendations**
+   - Sends music profile to AI
+   - Excludes low-rated songs (1-2 stars)
+   - Requests 11 themed playlists
+
+3. **Creates playlists in Navidrome**
+   - Searches library for each song
+   - Downloads missing tracks via Octo-Fiesta
+   - Adds songs to new playlists
+
+4. **Optional integrations**
+   - Fetches Last.fm recommendations
+   - Gets ListenBrainz suggestions
+   - Merges all sources
+
+---
+
+## 🧪 Dry Run Mode
+
+Test without making changes:
+
+```bash
+docker run --rm \
+  -v octogen-data:/data \
+  --env-file .env \
+  blueion76/octogen:latest \
+  python octogen.py --dry-run
+```
+
+Shows what would happen without:
+- Downloading songs
+- Creating playlists
+- Making any changes
+
+---
+
+## 📁 Data Persistence
+
+OctoGen stores data in `/data`:
 
 ```
-git clone https://github.com/Blueion76/octofiesta-playlist-generator-llm
-cd spotify-clone
+/data/
+├── octogen.log              # Application logs
+├── octogen_cache.db         # Star ratings cache
+├── gemini_cache.json        # AI context cache
+└── octogen.lock             # Prevents duplicate runs
 ```
-### 2. Install Python Dependencies
+
+Mount a volume to persist data:
+```bash
+-v octogen-data:/data
+```
+
+---
+
+## 🔍 Monitoring
+
+### View Logs
+```bash
+# Real-time logs
+docker logs -f octogen
+
+# Last 100 lines
+docker logs --tail 100 octogen
+
+# Save to file
+docker logs octogen > octogen.log
+```
+
+### Check Status
+```bash
+# Container status
+docker ps -a | grep octogen
+
+# Resource usage
+docker stats octogen
+
+# Inspect container
+docker inspect octogen
+```
+
+### Verify Data
+```bash
+# Check data directory
+docker exec octogen ls -lh /data
+
+# View log file
+docker exec octogen tail -n 50 /data/octogen.log
+
+# Check cache
+docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings;"
+```
+
+---
+
+## 🛠️ Troubleshooting
+
+### Problem: "Can't connect to Navidrome"
+
+**Solution:**
+- Check `NAVIDROME_URL` is correct
+- Use Docker network name if both containers on same network
+- Try: `http://navidrome:4533` instead of `http://localhost:4533`
+
+### Problem: "AI API error"
+
+**Solution:**
+- Verify API key is correct
+- Check API provider status
+- Ensure you have API credits/quota
+- Try different model if rate limited
+
+### Problem: "No playlists created"
+
+**Solution:**
+- Check logs: `docker logs octogen`
+- Ensure you have starred songs in Navidrome
+- Verify Octo-Fiesta is running
+- Try dry-run mode to see what would happen
+
+### Problem: "Downloads not working"
+
+**Solution:**
+- Verify `OCTOFIESTA_URL` is correct
+- Check Octo-Fiesta is configured properly
+- Ensure Navidrome credentials are correct
+- Check network connectivity between containers
+
+---
+
+## 🏗️ Architecture
 
 ```
-pip install openai requests aiohttp
+┌─────────────────────────────────────────────────────────┐
+│                      OctoGen                            │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌────────────┐   ┌─────────────┐   ┌──────────────┐  │
+│  │ Navidrome  │──▶│ AI Provider │──▶│ Octo-Fiesta  │  │
+│  │   API      │   │  (Gemini)   │   │  Downloader  │  │
+│  └────────────┘   └─────────────┘   └──────────────┘  │
+│       │                  │                   │         │
+│       ▼                  ▼                   ▼         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │          SQLite Cache + Logs                     │  │
+│  │    (ratings_cache.db, octogen.log)              │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
-For Gemini SDK support (recommended):
 
-```
-pip install google-genai
-```
-### 3. Configure the Application
+**Components:**
+- **Navidrome API**: Reads library, creates playlists
+- **AI Provider**: Generates recommendations
+- **Octo-Fiesta**: Downloads missing tracks
+- **SQLite Cache**: Stores ratings (daily refresh)
+- **Logs**: Application activity
 
-Create a `config.json` file in the same directory as `spotify_clone.py`:
-```
-{
-  "navidrome": {
-    "url": "http://your-navidrome-server:4533",
-    "username": "your_username",
-    "password": "your_password"
-  },
-  "octofiestarr": {
-    "url": "http://your-octofiesta-server:port"
-  },  
-  "ai": {
-    "api_key": "your_api_key",
-    "model": "gemini-2.0-flash-thinking-exp-01-21",
-    "backend": "gemini",
-    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-    "max_context_songs": 500,
-    "max_output_tokens": 65535
-  },
-  "performance": {
-    "album_batch_size": 500,
-    "max_albums_scan": 10000,
-    "scan_timeout": 30,
-    "download_delay_seconds": 6,
-    "post_scan_delay_seconds": 2
-  },
-  "lastfm": {
-    "enabled": false,
-    "api_key": "your_lastfm_key",
-    "username": "your_lastfm_username"
-  },
-  "listenbrainz": {
-    "enabled": false,
-    "username": "your_listenbrainz_username",
-    "token": "your_listenbrainz_token"
-  }
-}
-```
-## Configuration Guide
+---
 
-### AI Backend Options
+## 📚 Documentation
 
-#### Option 1: Google Gemini (Recommended)
-```
-"ai": {
-  "api_key": "YOUR_GEMINI_API_KEY",
-  "model": "gemini-2.0-flash-thinking-exp-01-21",
-  "backend": "gemini",
-  "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"
-}
-```
-Get your API key: https://aistudio.google.com/apikey
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
+- **[ENV_VARS.md](ENV_VARS.md)** - Complete variable reference
+- **[GITHUB_WEB_UI_SETUP.md](GITHUB_WEB_UI_SETUP.md)** - Setup via web interface
+- **[DOCKER_HUB_README.md](DOCKER_HUB_README.md)** - Docker Hub documentation
 
-#### Option 2: OpenAI or Compatible Endpoint
-```
-"ai": {
-  "api_key": "YOUR_OPENAI_API_KEY",
-  "model": "gpt-4",
-  "backend": "openai",
-  "base_url": null
-}
-```
-For custom endpoints (e.g., local LLMs):
+---
 
-```"base_url": "http://localhost:1234/v1/"```
+## 🤝 Contributing
 
-### Performance Tuning
+Contributions welcome! Please:
 
-- `album_batch_size`: Number of albums to fetch per API call (default: 500)
-- `max_albums_scan`: Maximum albums to scan during rating collection (default: 10000)
-- `download_delay_seconds`: Wait time after triggering download (default: 6)
-- `post_scan_delay_seconds`: Wait time after library scan (default: 2)
-- `max_context_songs`: Number of favorited songs sent to AI for context (default: 500)
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### Optional Service Setup
+---
 
-#### Last.fm
-1. Create API account: https://www.last.fm/api/account/create
-2. Enable in config and add your API key and username
+## 📝 License
 
-#### ListenBrainz
-1. Create account: https://listenbrainz.org
-2. Generate user token in settings
-3. Enable in config and add username/token
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Usage
+---
 
-### Basic Run
+## 🙏 Acknowledgments
 
-```python3 spotify_clone.py```
+- **[Navidrome](https://www.navidrome.org/)** - Open-source music server
+- **[Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta)** - Automated music downloader
+- **[Google Gemini](https://ai.google.dev/)** - AI recommendations
+- **[Last.fm](https://www.last.fm/)** - Music discovery API
+- **[ListenBrainz](https://listenbrainz.org/)** - Open music metadata
 
-### Dry Run Mode (No Downloads/Changes)
+---
 
-```python3 spotify_clone.py --dry-run```
+## 🔗 Links
 
-## Generated Playlists
+- **Docker Hub**: [hub.docker.com/r/blueion76/octogen](https://hub.docker.com/r/blueion76/octogen)
+- **GitHub**: [github.com/Blueion76/Octogen](https://github.com/Blueion76/Octogen)
+- **GHCR**: [ghcr.io/blueion76/octogen](https://ghcr.io/blueion76/octogen)
+- **Issues**: [github.com/Blueion76/Octogen/issues](https://github.com/Blueion76/Octogen/issues)
 
-The engine creates 11 personalized playlists:
+---
 
-1. **Discovery Weekly**: 50 songs (45 new discoveries + 5 from library)
-2. **Daily Mix 1-6**: 30 songs each based on your top genres (25 library + 5 new)
-3. **Chill Vibes**: 30 relaxing songs
-4. **Workout Energy**: 30 high-energy songs
-5. **Focus Flow**: 30 ambient/instrumental songs
-6. **Drive Time**: 30 upbeat songs
+## ⭐ Star History
 
-## How It Works
+If you find this project useful, please consider giving it a star! ⭐
 
-1. **Library Analysis**: Scans your Navidrome library for starred songs and ratings
-2. **Profile Building**: Extracts top artists and genres from your favorites
-3. **AI Generation**: Uses AI to generate personalized playlists while excluding low-rated songs
-4. **Smart Matching**: Searches library first before triggering downloads
-5. **Automated Downloads**: Uses octo-fiesta to fetch missing tracks
-6. **Playlist Creation**: Creates/updates playlists in Navidrome
+---
 
-## File Structure
-
-- `spotify_clone.py` - Main application script
-- `config.json` - Configuration file
-- `discovery_engine.log` - Application logs
-- `ratings_cache.db` - SQLite database for rating cache
-- `gemini_cache.json` - Gemini API cache metadata
-- `discovery_engine.lock` - Instance lock file
-
-## Troubleshooting
-
-### "Another instance is already running"
-The lock file prevents multiple simultaneous runs. If crashed, remove `discovery_engine.lock`:
-
-```rm discovery_engine.lock```
-
-### "ERROR: pip install openai requests aiohttp"
-Install missing dependencies:
-
-```pip install openai requests aiohttp google-genai```
-
-### Gemini "cache invalid" messages
-Cache is automatically regenerated daily. This is normal behavior.
-
-### Songs not downloading
-- Verify octo-fiesta is running and accessible
-- Check `download_delay_seconds` - increase if downloads timing out
-- Review logs in `discovery_engine.log`
-
-### API Rate Limiting
-Adjust `max_output_tokens` in config or reduce `max_context_songs` to lower token usage.
-
-## Advanced Features
-
-### Rating System
-- Songs rated 1-2 stars are automatically excluded from recommendations
-- Rating cache refreshes daily to track new ratings
-- Clear cache manually: Delete `ratings_cache.db`
-
-### Cache Management
-- Gemini cache expires after 24 hours
-- Ratings cache refreshes daily at first run
-- Clear Gemini cache: Delete `gemini_cache.json`
-
-## Logs
-
-View real-time logs:
-
-```tail -f discovery_engine.log```
-
-## Performance
-
-- **First Run**: 10-20 seconds for Gemini cache creation
-- **Subsequent Runs**: ~3-5 seconds with cache
-- **Library Scan**: Depends on library size (async parallel processing)
-
-## Contributing
-
-Feel free to submit issues, fork the repository, and create pull requests for any improvements.
-
-## Credits
-
-- Integrates with [Navidrome](https://www.navidrome.org/)
-- Powered by Google Gemini / OpenAI
-- Uses Subsonic API protocol
-- [Octo Fiesta](https://github.com/V1ck3s/octo-fiesta)
+**Made with ❤️ for the self-hosted music community**
