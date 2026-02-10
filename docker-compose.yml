@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  octogen:
+    image: blueion76/octogen:latest
+    container_name: octogen
+    volumes:
+      - octogen-data:/data
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  octogen-data:
