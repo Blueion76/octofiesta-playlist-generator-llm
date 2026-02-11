@@ -57,7 +57,7 @@ cat > .env << 'EOF'
 NAVIDROME_URL=http://192.168.1.100:4533
 NAVIDROME_USER=admin
 NAVIDROME_PASSWORD=your_password
-OCTOFIESTA_URL=http://192.168.1.100:5274
+OCTOFIESTA_URL=http://192.168.1.100:8080
 AI_API_KEY=your_llm_api_key
 
 # Optional
@@ -113,7 +113,7 @@ services:
       NAVIDROME_URL: http://navidrome:4533
       NAVIDROME_USER: admin
       NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
-      OCTOFIESTA_URL: http://octofiesta:5274
+      OCTOFIESTA_URL: http://octofiesta:8080
       AI_API_KEY: ${GEMINI_API_KEY}
 
       # Scheduling 
@@ -146,7 +146,7 @@ docker-compose logs -f octogen
 | `NAVIDROME_URL` | Navidrome server URL | `http://192.168.1.100:4533` |
 | `NAVIDROME_USER` | Navidrome username | `admin` |
 | `NAVIDROME_PASSWORD` | Navidrome password | `your_password` |
-| `OCTOFIESTA_URL` | Octo-Fiesta server URL | `http://192.168.1.100:5274` |
+| `OCTOFIESTA_URL` | Octo-Fiesta server URL | `http://192.168.1.100:8080` |
 | `AI_API_KEY` | AI provider API key | `your_llm_api_key` |
 
 ### Optional Configuration
