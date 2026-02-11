@@ -34,6 +34,7 @@ Please note this project was mostly compiled by Claude Code. Pull requests and r
 - **Daily cache**: Efficient library scanning
 - **Async operations**: Fast, parallel processing
 - **Last.fm & ListenBrainz**: Optional integration
+- **Built-in scheduling**: No external cron needed! 🕐
 
 ---
 
@@ -63,6 +64,10 @@ AI_API_KEY=your_llm_api_key
 AI_MODEL=gemini-2.5-flash
 AI_BACKEND=gemini
 LOG_LEVEL=INFO
+
+# Scheduling 
+SCHEDULE_CRON=0 6 * * *
+TZ=America/Chicago
 EOF
 ```
 
@@ -72,7 +77,7 @@ EOF
 # Pull the image
 docker pull blueion76/octogen:latest
 
-# Run OctoGen
+# Run OctoGen with automatic scheduling
 docker run -d \
   --name octogen \
   -v octogen-data:/data \
@@ -80,12 +85,14 @@ docker run -d \
   --restart unless-stopped \
   blueion76/octogen:latest
 
-# Check logs
+# Check logs (see countdown to next run!)
 docker logs -f octogen
 ```
 
 ### 4. Check Your Navidrome
 Open Navidrome and find your new playlists! 🎉
+
+**Playlists update automatically at 6 AM daily!**
 
 ---
 
@@ -98,11 +105,25 @@ services:
   octogen:
     image: blueion76/octogen:latest
     container_name: octogen
+    restart: unless-stopped
     volumes:
       - octogen-data:/data
-    env_file:
-      - .env
-    restart: unless-stopped
+    environment:
+      # Required
+      NAVIDROME_URL: http://navidrome:4533
+      NAVIDROME_USER: admin
+      NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
+      OCTOFIESTA_URL: http://octofiesta:5274
+      AI_API_KEY: ${GEMINI_API_KEY}
+
+      # Scheduling 
+      SCHEDULE_CRON: "0 6 * * *"  # Daily at 6 AM
+      TZ: America/Chicago
+
+      # Optional
+      AI_MODEL: gemini-2.5-flash
+      AI_BACKEND: gemini
+      LOG_LEVEL: INFO
 
 volumes:
   octogen-data:
@@ -135,6 +156,8 @@ docker-compose logs -f octogen
 | `AI_MODEL` | `gemini-2.5-flash` | AI model to use |
 | `AI_BACKEND` | `gemini` | Backend: `gemini` or `openai` |
 | `AI_BASE_URL` | (none) | Custom API endpoint |
+| `SCHEDULE_CRON` | (none) | Cron schedule (e.g., `0 6 * * *`) |
+| `TZ` | `UTC` | Timezone (e.g., `America/Chicago`) |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
 **See [ENV_VARS.md](ENV_VARS.md) for complete reference.**
@@ -185,37 +208,88 @@ AI_API_KEY=your_openrouter_api_key
 
 ---
 
-## 🔄 Scheduling
+## 🕐 Automatic Scheduling 
 
-### Run Daily at 6 AM
+OctoGen now includes **built-in cron scheduling** - no external cron daemon or scripts needed!
 
-**Docker Compose with cron:**
-```yaml
-services:
-  octogen:
-    image: blueion76/octogen:latest
-    container_name: octogen
-    volumes:
-      - octogen-data:/data
-    env_file:
-      - .env
-    command: |
-      sh -c "while true; do
-        python octogen.py
-        sleep 86400
-      done"
-```
+### Quick Setup
 
-**System cron:**
+Just add these two environment variables:
+
 ```bash
-# Edit crontab
-crontab -e
-
-# Add line:
-0 6 * * * docker start octogen
+SCHEDULE_CRON=0 6 * * *    # Daily at 6 AM
+TZ=America/Chicago         # Your timezone
 ```
 
-**Kubernetes CronJob:**
+The container stays running and automatically executes on schedule. You'll see countdown logs:
+
+```
+🕐 OCTOGEN SCHEDULER
+══════════════════════════════════════════════════════════════════════
+Schedule: 0 6 * * *
+Timezone: America/Chicago
+══════════════════════════════════════════════════════════════════════
+📅 Next scheduled run: 2026-02-11 06:00:00
+⏰ Next run in 3.5 hours (2026-02-11 06:00:00)
+```
+
+### Schedule Examples
+
+| Schedule | Cron Expression | Description |
+|----------|----------------|-------------|
+| Daily at 6 AM | `0 6 * * *` | Once per day |
+| Twice daily | `0 */12 * * *` | Every 12 hours |
+| Every 6 hours | `0 */6 * * *` | 4 times per day |
+| Weekly (Sunday 3 AM) | `0 3 * * 0` | Once per week |
+| Every Monday 9 AM | `0 9 * * 1` | Weekly on Monday |
+
+**Cron Format:**
+```
+* * * * *
+│ │ │ │ │
+│ │ │ │ └─── Day of week (0-7)
+│ │ │ └───── Month (1-12)
+│ │ └─────── Day of month (1-31)
+│ └───────── Hour (0-23)
+└─────────── Minute (0-59)
+```
+
+**Test your expressions:** [crontab.guru](https://crontab.guru)
+
+### Timezone Configuration
+
+**Important:** Set `TZ` to get correct local times! Without it, times are in UTC.
+
+```bash
+# United States
+TZ=America/New_York        # Eastern
+TZ=America/Chicago         # Central  
+TZ=America/Denver          # Mountain
+TZ=America/Los_Angeles     # Pacific
+
+# Europe
+TZ=Europe/London           # UK
+TZ=Europe/Paris            # France
+TZ=Europe/Berlin           # Germany
+
+# Other
+TZ=Asia/Tokyo              # Japan
+TZ=Australia/Sydney        # Australia
+```
+
+### Manual Run (No Scheduling)
+
+Leave `SCHEDULE_CRON` unset or set to `manual`:
+
+```bash
+# Run once and exit
+docker run --rm --env-file .env blueion76/octogen:latest
+```
+
+### Advanced: Kubernetes CronJob
+
+If you prefer Kubernetes native scheduling:
+
 ```yaml
 apiVersion: batch/v1
 kind: CronJob
@@ -223,6 +297,7 @@ metadata:
   name: octogen
 spec:
   schedule: "0 6 * * *"
+  timeZone: "America/Chicago"  # Kubernetes 1.25+
   jobTemplate:
     spec:
       template:
@@ -235,6 +310,8 @@ spec:
                 name: octogen-secrets
           restartPolicy: OnFailure
 ```
+
+**Note:** Built-in scheduling is recommended for simplicity!
 
 ---
 
@@ -255,7 +332,12 @@ spec:
    - Downloads missing tracks via Octo-Fiesta
    - Adds songs to new playlists
 
-4. **Optional integrations**
+4. **Waits for next scheduled run** (if `SCHEDULE_CRON` is set)
+   - Calculates next run time
+   - Shows countdown in logs
+   - Automatically retries on errors
+
+5. **Optional integrations**
    - Fetches Last.fm recommendations
    - Gets ListenBrainz suggestions
    - Merges all sources
@@ -326,6 +408,18 @@ docker stats octogen
 docker inspect octogen
 ```
 
+### Verify Scheduler
+```bash
+# Check if scheduler is running
+docker logs octogen | grep "SCHEDULER"
+
+# See next run time
+docker logs octogen | grep "Next scheduled run"
+
+# Verify timezone
+docker logs octogen | grep "Timezone:"
+```
+
 ### Verify Data
 ```bash
 # Check data directory
@@ -373,27 +467,49 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 - Ensure Navidrome credentials are correct
 - Check network connectivity between containers
 
+### Problem: "Scheduler not working"
+
+**Solution:**
+- Verify `SCHEDULE_CRON` is set: `docker inspect octogen | grep SCHEDULE_CRON`
+- Check logs for "OCTOGEN SCHEDULER" message
+- Ensure container has restart policy: `--restart unless-stopped`
+- Verify timezone: `docker logs octogen | grep "Timezone:"`
+
+### Problem: "Wrong time scheduled"
+
+**Solution:**
+- Set `TZ` environment variable to your timezone
+- Without `TZ`, times are in UTC
+- Check current timezone in logs
+- Test cron expression at [crontab.guru](https://crontab.guru)
+
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      OctoGen                            │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ┌────────────┐   ┌─────────────┐   ┌──────────────┐  │
-│  │ Navidrome  │──▶│ AI Provider │──▶│ Octo-Fiesta  │  │
-│  │   API      │   │  (Gemini)   │   │  Downloader  │  │
-│  └────────────┘   └─────────────┘   └──────────────┘  │
+┌────────────────────────────────────────────────────────┐
+│                      OctoGen                           │
+├────────────────────────────────────────────────────────┤
+│                                                        │
+│  ┌────────────┐   ┌─────────────┐   ┌──────────────┐   │
+│  │ Navidrome  │──▶│ AI Provider │──▶│ Octo-Fiesta  │   │
+│  │   API      │   │             │   │  Downloader  │   │
+│  └────────────┘   └─────────────┘   └──────────────┘   │
 │       │                  │                   │         │
 │       ▼                  ▼                   ▼         │
 │  ┌──────────────────────────────────────────────────┐  │
 │  │          SQLite Cache + Logs                     │  │
-│  │    (ratings_cache.db, octogen.log)              │  │
+│  │    (ratings_cache.db, octogen.log)               │  │
 │  └──────────────────────────────────────────────────┘  │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+│                         │                              │
+│                         ▼                              │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │       Built-in Scheduler (cron)                  │  │
+│  │    Waits → Executes → Waits → Executes...        │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                        │
+└────────────────────────────────────────────────────────┘
 ```
 
 **Components:**
@@ -402,13 +518,14 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 - **Octo-Fiesta**: Downloads missing tracks
 - **SQLite Cache**: Stores ratings (daily refresh)
 - **Logs**: Application activity
+- **Built-in Scheduler**: Automatic execution 
 
 ---
 
 ## 📚 Documentation
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
-- **[ENV_VARS.md](ENV_VARS.md)** - Complete variable reference
+- **[ENV_VARS.md](ENV_VARS.md)** - Complete variable reference (25 variables)
 
 ---
 
