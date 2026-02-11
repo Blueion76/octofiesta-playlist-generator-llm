@@ -181,6 +181,124 @@ AI_MAX_OUTPUT_TOKENS=65535
 
 ---
 
+## 🕐 Scheduling Configuration (Optional)
+
+### SCHEDULE_CRON
+**Description**: Cron expression for automatic scheduling  
+**Default**: None (manual run)  
+**Format**: Standard cron expression  
+**Examples**:
+```bash
+# Daily at 6 AM
+SCHEDULE_CRON=0 6 * * *
+
+# Twice daily (6 AM and 6 PM)
+SCHEDULE_CRON=0 6,18 * * *
+
+# Every 12 hours
+SCHEDULE_CRON=0 */12 * * *
+
+# Every 6 hours
+SCHEDULE_CRON=0 */6 * * *
+
+# Weekly on Sunday at 3 AM
+SCHEDULE_CRON=0 3 * * 0
+
+# Every Monday at 9 AM
+SCHEDULE_CRON=0 9 * * 1
+
+# Every 30 minutes (testing)
+SCHEDULE_CRON=*/30 * * * *
+
+# Manual run (no scheduling)
+SCHEDULE_CRON=manual
+```
+**Cron Format**:
+```
+* * * * *
+│ │ │ │ │
+│ │ │ │ └─── Day of week (0-7, 0 and 7 = Sunday)
+│ │ │ └───── Month (1-12)
+│ │ └─────── Day of month (1-31)
+│ └───────── Hour (0-23)
+└─────────── Minute (0-59)
+```
+**Notes**:
+- Requires `croniter` Python package (included in Docker image)
+- Container stays running and executes on schedule
+- Shows countdown in logs: "⏰ Next run in 3.5 hours"
+- To disable: Leave unset or use `manual`, `off`, `false`, `no`, `disabled`
+- Test expressions at: https://crontab.guru
+- **Recommended**: Set with `TZ` variable for correct timezone
+
+**How It Works**:
+1. When `SCHEDULE_CRON` is set, container stays running
+2. Calculates next run time from cron expression
+3. Waits until that time (showing countdown)
+4. Executes OctoGen
+5. Repeats forever (or until stopped)
+6. On error: logs error and continues to next scheduled run
+
+---
+
+### TZ
+**Description**: Timezone for scheduled runs  
+**Default**: `UTC`  
+**Format**: IANA timezone name  
+**Examples**:
+```bash
+# United States
+TZ=America/New_York      # Eastern Time
+TZ=America/Chicago       # Central Time
+TZ=America/Denver        # Mountain Time
+TZ=America/Los_Angeles   # Pacific Time
+TZ=America/Phoenix       # Arizona (no DST)
+TZ=America/Anchorage     # Alaska
+TZ=Pacific/Honolulu      # Hawaii
+
+# Europe
+TZ=Europe/London         # UK
+TZ=Europe/Paris          # France/Central Europe
+TZ=Europe/Berlin         # Germany
+TZ=Europe/Rome           # Italy
+TZ=Europe/Madrid         # Spain
+TZ=Europe/Amsterdam      # Netherlands
+
+# Asia
+TZ=Asia/Tokyo            # Japan
+TZ=Asia/Shanghai         # China
+TZ=Asia/Seoul            # South Korea
+TZ=Asia/Singapore        # Singapore
+TZ=Asia/Dubai            # UAE
+TZ=Asia/Kolkata          # India
+
+# Australia
+TZ=Australia/Sydney      # East Coast
+TZ=Australia/Melbourne   # Victoria
+TZ=Australia/Perth       # West Coast
+
+# Other
+TZ=UTC                   # Universal (default)
+```
+**Notes**:
+- **Important**: Set this with `SCHEDULE_CRON` for correct local times
+- Without `TZ`, all times are UTC
+- List all timezones: `timedatectl list-timezones`
+- Docker uses container timezone, not host timezone
+- Visible in logs: "Timezone: America/Chicago"
+
+**Example - Schedule 6 AM Local Time**:
+```bash
+# Wrong (runs at 6 AM UTC, not your local time)
+SCHEDULE_CRON=0 6 * * *
+
+# Right (runs at 6 AM Chicago time)
+SCHEDULE_CRON=0 6 * * *
+TZ=America/Chicago
+```
+
+---
+
 ## 🟢 Last.fm Integration (Optional)
 
 ### LASTFM_ENABLED
@@ -361,6 +479,19 @@ OCTOFIESTA_URL=http://192.168.1.100:5274
 AI_API_KEY=AIzaSyABC123...
 ```
 
+### Scheduled Daily (Recommended)
+```bash
+NAVIDROME_URL=http://192.168.1.100:4533
+NAVIDROME_USER=admin
+NAVIDROME_PASSWORD=secret123
+OCTOFIESTA_URL=http://192.168.1.100:5274
+AI_API_KEY=AIzaSyABC123...
+
+# Run daily at 6 AM local time
+SCHEDULE_CRON=0 6 * * *
+TZ=America/Chicago
+```
+
 ### With Groq (Fast & Free)
 ```bash
 NAVIDROME_URL=http://192.168.1.100:4533
@@ -372,6 +503,10 @@ AI_BACKEND=openai
 AI_BASE_URL=https://api.groq.com/openai/v1
 AI_MODEL=llama-3.3-70b-versatile
 AI_API_KEY=gsk_abc123...
+
+# Every 12 hours
+SCHEDULE_CRON=0 */12 * * *
+TZ=America/New_York
 ```
 
 ### With Ollama (Local)
@@ -385,9 +520,13 @@ AI_BACKEND=openai
 AI_BASE_URL=http://host.docker.internal:11434/v1
 AI_MODEL=llama3.2
 AI_API_KEY=ollama
+
+# Weekly on Sunday at 3 AM
+SCHEDULE_CRON=0 3 * * 0
+TZ=UTC
 ```
 
-### Full Featured
+### Full Featured with Scheduling
 ```bash
 # Navidrome
 NAVIDROME_URL=http://192.168.1.100:4533
@@ -403,6 +542,10 @@ AI_MODEL=gemini-2.5-flash
 AI_BACKEND=gemini
 AI_MAX_CONTEXT_SONGS=500
 AI_MAX_OUTPUT_TOKENS=65535
+
+# Scheduling
+SCHEDULE_CRON=0 6 * * *
+TZ=America/Chicago
 
 # Last.fm
 LASTFM_ENABLED=true
@@ -432,6 +575,7 @@ LOG_LEVEL=INFO
 - **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
 - **Main Documentation**: [README.md](README.md)
 - **GitHub Setup**: [GITHUB_WEB_UI_SETUP.md](GITHUB_WEB_UI_SETUP.md)
+- **Cron Helper**: https://crontab.guru
 
 ---
 
@@ -445,12 +589,16 @@ services:
     image: blueion76/octogen:latest
     env_file:
       - .env
+    restart: unless-stopped  # Important for scheduling!
 ```
 
 ### Docker Run
 Pass environment file:
 ```bash
-docker run --env-file .env blueion76/octogen:latest
+docker run -d \
+  --env-file .env \
+  --restart unless-stopped \
+  blueion76/octogen:latest
 ```
 
 ### Docker Secrets
@@ -464,6 +612,45 @@ If same variable set multiple ways:
 1. Command line (`-e VAR=value`)
 2. Environment file (`--env-file .env`)
 3. Default value in code
+
+### Scheduling Best Practices
+- ✅ **DO**: Use `SCHEDULE_CRON` with `TZ` for automatic updates
+- ✅ **DO**: Set `restart: unless-stopped` in Docker Compose
+- ✅ **DO**: Run daily during off-peak hours (3-6 AM)
+- ✅ **DO**: Monitor logs after first scheduled run
+- ❌ **DON'T**: Schedule too frequently (< 6 hours)
+- ❌ **DON'T**: Forget to set timezone (defaults to UTC!)
+- ❌ **DON'T**: Use shell loops anymore (built-in scheduler is better)
+
+### Troubleshooting Scheduling
+```bash
+# Check if scheduler is active
+docker logs octogen | grep "SCHEDULER"
+
+# See next run time
+docker logs octogen | grep "Next scheduled run"
+
+# Verify timezone
+docker logs octogen | grep "Timezone:"
+
+# Test cron expression
+# Visit: https://crontab.guru
+```
+
+---
+
+## 📊 Variable Summary
+
+| Category | Count | Variables |
+|----------|-------|-----------|
+| **Required** | 5 | NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASSWORD, OCTOFIESTA_URL, AI_API_KEY |
+| **AI Config** | 5 | AI_MODEL, AI_BACKEND, AI_BASE_URL, AI_MAX_CONTEXT_SONGS, AI_MAX_OUTPUT_TOKENS |
+| **Scheduling** | 2 | SCHEDULE_CRON, TZ |
+| **Last.fm** | 3 | LASTFM_ENABLED, LASTFM_API_KEY, LASTFM_USERNAME |
+| **ListenBrainz** | 3 | LISTENBRAINZ_ENABLED, LISTENBRAINZ_USERNAME, LISTENBRAINZ_TOKEN |
+| **Performance** | 5 | PERF_ALBUM_BATCH_SIZE, PERF_MAX_ALBUMS_SCAN, PERF_SCAN_TIMEOUT, PERF_DOWNLOAD_DELAY, PERF_POST_SCAN_DELAY |
+| **System** | 2 | LOG_LEVEL, OCTOGEN_DATA_DIR |
+| **Total** | **25** | |
 
 ---
 
