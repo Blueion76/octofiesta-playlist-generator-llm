@@ -355,9 +355,105 @@ class ListenBrainzAPI:
             logger.error("ListenBrainz API error: %s", str(e)[:200])
             return None
 
+    def get_created_for_you_playlists(self, count: int = 25, offset: int = 0) -> List[Dict]:
+        """
+        Fetch metadata for 'Created For You' playlists.
+        Returns list of playlist metadata (without tracks).
+        """
+        logger.info("Fetching 'Created For You' playlists...")
+        
+        response = self._request(
+            f"user/{self.username}/playlists/createdfor",
+            params={"count": count, "offset": offset}
+        )
+        
+        if not response or "playlists" not in response:
+            logger.warning("No 'Created For You' playlists found")
+            return []
+        
+        playlists = response["playlists"]
+        logger.info("Found %d 'Created For You' playlists", len(playlists))
+        return playlists
+
+    def get_playlist_tracks(self, playlist_mbid: str) -> List[Dict]:
+        """
+        Fetch tracks from a specific playlist by MBID.
+        Returns list of tracks with artist and title.
+        """
+        logger.info("Fetching playlist tracks for: %s", playlist_mbid)
+        
+        response = self._request(f"playlist/{playlist_mbid}")
+        
+        if not response or "playlist" not in response:
+            logger.warning("Playlist not found: %s", playlist_mbid)
+            return []
+        
+        tracks = []
+        playlist_data = response["playlist"]
+        
+        # Extract tracks from JSPF format
+        for track in playlist_data.get("track", []):
+            # Get artist and title from track metadata
+            artist = track.get("creator", "Unknown")
+            title = track.get("title", "Unknown")
+            
+            tracks.append({
+                "artist": artist,
+                "title": title,
+                "mbid": track.get("identifier", [""])[0].split("/")[-1] if track.get("identifier") else None
+            })
+        
+        logger.info("Found %d tracks in playlist", len(tracks))
+        return tracks
+
+    def get_recommendations_from_playlists(self, limit: int = 50, playlist_filter: str = None) -> List[Dict]:
+        """
+        Fetch tracks from 'Created For You' playlists.
+        
+        Args:
+            limit: Maximum number of tracks to return
+            playlist_filter: Optional string to filter playlists by name (e.g., "Weekly Jams", "Daily")
+        """
+        logger.info("Fetching recommendations from 'Created For You' playlists...")
+        
+        # Get all created for you playlists
+        playlists = self.get_created_for_you_playlists()
+        
+        if not playlists:
+            return []
+        
+        # Filter playlists if requested
+        if playlist_filter:
+            playlists = [p for p in playlists if playlist_filter.lower() in p.get("title", "").lower()]
+            logger.info("Filtered to %d playlists matching '%s'", len(playlists), playlist_filter)
+        
+        # Collect tracks from playlists
+        all_tracks = []
+        for playlist in playlists:
+            playlist_mbid = playlist["identifier"].split("/")[-1]
+            tracks = self.get_playlist_tracks(playlist_mbid)
+            
+            # Add playlist info to each track
+            for track in tracks:
+                track["playlist"] = playlist.get("title", "Unknown")
+            
+            all_tracks.extend(tracks)
+            
+            # Stop if we've reached the limit
+            if len(all_tracks) >= limit:
+                break
+        
+        # Limit results
+        all_tracks = all_tracks[:limit]
+        logger.info("Returning %d total tracks from playlists", len(all_tracks))
+        return all_tracks
+
     def get_recommendations(self, limit: int = 50) -> List[Dict]:
-        """Fetch personalized recommendations."""
-        logger.info("Fetching ListenBrainz recommendations...")
+        """
+        Fetch personalized recommendations using collaborative filtering.
+        This is the original recommendation endpoint (different from playlists).
+        """
+        logger.info("Fetching ListenBrainz CF recommendations...")
 
         response = self._request(f"cf/recommendation/user/{self.username}/recording")
         if not response or "payload" not in response:
@@ -375,8 +471,9 @@ class ListenBrainzAPI:
                     title = data.get("recording", {}).get("name", "Unknown")
                     recommendations.append({"artist": artist, "title": title})
 
-        logger.info("Found %d ListenBrainz recommendations", len(recommendations))
+        logger.info("Found %d ListenBrainz CF recommendations", len(recommendations))
         return recommendations
+
 
 class OctoFiestarrTrigger:
     """Triggers octo-fiestarr downloads via Subsonic endpoints."""
