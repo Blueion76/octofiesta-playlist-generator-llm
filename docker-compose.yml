@@ -4,11 +4,26 @@ services:
   octogen:
     image: blueion76/octogen:latest
     container_name: octogen
+    restart: unless-stopped
     volumes:
       - octogen-data:/data
-    env_file:
-      - .env
-    restart: unless-stopped
+    environment:
+      # Required
+      NAVIDROME_URL: http://navidrome:4533
+      NAVIDROME_USER: admin
+      NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
+      OCTOFIESTA_URL: http://octofiesta:5274
+      AI_API_KEY: ${GEMINI_API_KEY}
+
+      # Scheduling (NEW!)
+      SCHEDULE_CRON: "0 6 * * *"  # Daily at 6 AM
+      TZ: America/Chicago
+
+      # Optional
+      AI_MODEL: gemini-2.5-flash
+      AI_BASE_URL: https://generativelanguage.googleapis.com/v1beta/openai/
+      AI_BACKEND: gemini
+      LOG_LEVEL: INFO
 
 volumes:
   octogen-data:
