@@ -81,6 +81,9 @@ jobs:
     needs:
       - build
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
@@ -128,4 +131,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ env.REGISTRY_IMAGE }}
           short-description: ${{ github.event.repository.description }}
-          readme-filepath: ./DOCKER_HUB_README.md
+          readme-filepath: ./README.md
