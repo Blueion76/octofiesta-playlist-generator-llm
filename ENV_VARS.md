@@ -574,7 +574,6 @@ LOG_LEVEL=INFO
 
 - **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
 - **Main Documentation**: [README.md](README.md)
-- **GitHub Setup**: [GITHUB_WEB_UI_SETUP.md](GITHUB_WEB_UI_SETUP.md)
 - **Cron Helper**: https://crontab.guru
 
 ---
