@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """OctoGen - AI-Powered Music Discovery Engine for Navidrome
 
-Docker Edition with Environment Variable Configuration
+Docker Edition with Environment Variable Configuration + Built-in Scheduling
 
 Features:
 - AI recommendations (Gemini, OpenAI, Groq, Ollama, etc.)
@@ -11,6 +11,7 @@ Features:
 - Last.fm and ListenBrainz integration
 - Async operations for speed
 - Zero config files - pure environment variables
+- Built-in cron scheduling
 """
 
 import sys
@@ -33,10 +34,17 @@ from typing import List, Dict, Tuple, Optional, Set
 from collections import Counter
 from urllib.parse import urlencode
 
+# Try to import croniter for scheduling support
+try:
+    from croniter import croniter
+    CRONITER_AVAILABLE = True
+except ImportError:
+    CRONITER_AVAILABLE = False
+
 try:
     from openai import OpenAI
 except ImportError:
-    print("ERROR: pip install openai requests aiohttp", file=sys.stderr)
+    print("ERROR: pip install openai requests aiohttp croniter", file=sys.stderr)
     sys.exit(1)
 
 # Optional: Native Gemini SDK
@@ -1418,6 +1426,106 @@ class OctoGenEngine:
         except Exception as e:
             logger.error("Fatal error: %s", e, exc_info=True)
             sys.exit(1)
+
+# ============================================================================
+# SCHEDULING SUPPORT
+# ============================================================================
+
+def calculate_next_run(cron_expression: str) -> datetime:
+    """Calculate next run time from cron expression."""
+    if not CRONITER_AVAILABLE:
+        logger.error("croniter not installed. Run: pip install croniter")
+        sys.exit(1)
+
+    try:
+        cron = croniter(cron_expression, datetime.now())
+        next_run = cron.get_next(datetime)
+        return next_run
+    except Exception as e:
+        logger.error("Invalid cron expression '%s': %s", cron_expression, e)
+        sys.exit(1)
+
+def wait_until(target_time: datetime) -> None:
+    """Wait until target time, logging countdown."""
+    while True:
+        now = datetime.now()
+        if now >= target_time:
+            break
+
+        remaining = (target_time - now).total_seconds()
+        if remaining <= 0:
+            break
+
+        # Log countdown at intervals
+        if remaining > 3600:  # More than 1 hour
+            logger.info("⏰ Next run in %.1f hours (%s)", 
+                       remaining / 3600, target_time.strftime("%Y-%m-%d %H:%M:%S"))
+            time.sleep(min(1800, remaining))  # Check every 30 min
+        elif remaining > 60:  # More than 1 minute
+            logger.info("⏰ Next run in %.1f minutes", remaining / 60)
+            time.sleep(min(30, remaining))  # Check every 30 sec
+        else:
+            logger.info("⏰ Next run in %.0f seconds", remaining)
+            time.sleep(min(10, remaining))  # Check every 10 sec
+
+def run_with_schedule(dry_run: bool = False):
+    """Run engine with optional cron scheduling."""
+    schedule_cron = os.getenv("SCHEDULE_CRON", "").strip()
+
+    # Check if scheduling is disabled
+    if not schedule_cron or schedule_cron.lower() in ("manual", "false", "no", "off", "disabled"):
+        logger.info("🔧 Running in manual mode (no schedule)")
+        engine = OctoGenEngine(dry_run=dry_run)
+        engine.run()
+        return
+
+    # Validate croniter is available
+    if not CRONITER_AVAILABLE:
+        logger.error("❌ SCHEDULE_CRON is set but croniter is not installed")
+        logger.error("Run: pip install croniter")
+        logger.error("Or unset SCHEDULE_CRON for manual mode")
+        sys.exit(1)
+
+    # Scheduled mode
+    print("")  # Blank line after banner
+    logger.info("═" * 70)
+    logger.info("🕐 OCTOGEN SCHEDULER")
+    logger.info("═" * 70)
+    logger.info("Schedule: %s", schedule_cron)
+    logger.info("Timezone: %s", os.getenv("TZ", "UTC (default)"))
+    logger.info("═" * 70)
+
+    run_count = 0
+
+    while True:
+        try:
+            # Calculate next run time
+            next_run = calculate_next_run(schedule_cron)
+            logger.info("📅 Next scheduled run: %s", next_run.strftime("%Y-%m-%d %H:%M:%S"))
+
+            # Wait until next run
+            wait_until(next_run)
+
+            # Execute
+            run_count += 1
+            logger.info("═" * 70)
+            logger.info("🚀 SCHEDULED RUN #%d - %s", run_count, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            logger.info("═" * 70)
+
+            engine = OctoGenEngine(dry_run=dry_run)
+            engine.run()
+
+            logger.info("✅ Scheduled run #%d completed successfully", run_count)
+
+        except KeyboardInterrupt:
+            logger.info("⚠️  Scheduler interrupted by user")
+            break
+        except Exception as e:
+            logger.error("❌ Scheduled run failed: %s", e, exc_info=True)
+            # Continue scheduling despite errors
+            logger.info("🔄 Will retry on next scheduled run")
+            time.sleep(60)  # Wait 1 minute before recalculating
+
 
 # ============================================================================
 # MAIN ENTRY POINT
