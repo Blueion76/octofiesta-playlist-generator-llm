@@ -1550,9 +1550,26 @@ class OctoGenEngine:
                 logger.info("Creating ListenBrainz 'Created For You' playlists...")
                 lb_playlists = self.listenbrainz.get_created_for_you_playlists()
                 
+                # DEBUG: Show what fields we have
+                if lb_playlists:
+                    logger.info("DEBUG - First playlist keys: %s", list(lb_playlists[0].keys()))
+                
                 for lb_playlist in lb_playlists:
                     playlist_name = lb_playlist.get("title", "Unknown")
-                    playlist_mbid = lb_playlist["identifier"].split("/")[-1]
+                    
+                    # SAFE: Try multiple possible field names for the playlist ID
+                    playlist_mbid = None
+                    if "identifier" in lb_playlist:
+                        playlist_mbid = lb_playlist["identifier"].split("/")[-1]
+                    elif "mbid" in lb_playlist:
+                        playlist_mbid = lb_playlist["mbid"]
+                    elif "id" in lb_playlist:
+                        playlist_mbid = lb_playlist["id"]
+                    else:
+                        logger.error("Cannot find playlist ID. Available keys: %s", list(lb_playlist.keys()))
+                        continue
+                    
+                    logger.info("Processing: %s (MBID: %s)", playlist_name, playlist_mbid)
                     tracks = self.listenbrainz.get_playlist_tracks(playlist_mbid)
                     
                     # Search for songs in Navidrome
@@ -1564,6 +1581,7 @@ class OctoGenEngine:
                     
                     if found_ids:
                         self.nd.create_playlist(f"LB: {playlist_name}", found_ids)
+
 
             # Summary
             elapsed = datetime.now() - start_time
