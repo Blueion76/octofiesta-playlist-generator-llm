@@ -354,7 +354,7 @@ class ListenBrainzAPI:
         except Exception as e:
             logger.error("ListenBrainz API error: %s", str(e)[:200])
             return None
-
+    
     def get_created_for_you_playlists(self, count: int = 25, offset: int = 0) -> List[Dict]:
         """
         Fetch metadata for 'Created For You' playlists.
@@ -372,8 +372,15 @@ class ListenBrainzAPI:
             return []
         
         playlists = response["playlists"]
+        
+        # DEBUG: Print the structure of the first playlist
+        if playlists:
+            logger.info("First playlist keys: %s", list(playlists[0].keys()))
+            logger.debug("First playlist full structure: %s", playlists[0])
+        
         logger.info("Found %d 'Created For You' playlists", len(playlists))
         return playlists
+
 
     def get_recommendations_from_playlists(self, limit: int = 50, playlist_filter: str = None) -> List[Dict]:
         """
