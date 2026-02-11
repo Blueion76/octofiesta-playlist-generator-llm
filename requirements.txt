@@ -9,6 +9,9 @@ aiohttp>=3.9.0,<4.0.0
 # Google Gemini Native SDK (recommended for Gemini)
 google-genai>=1.0.0,<2.0.0
 
+# Scheduling support
+croniter>=1.4.0,<3.0.0
+
 # Note: No additional dependencies needed!
 # The script uses only Python standard library for:
 # - json, os, sys, pathlib
