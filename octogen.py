@@ -375,36 +375,78 @@ class ListenBrainzAPI:
         logger.info("Found %d 'Created For You' playlists", len(playlists))
         return playlists
 
-    def get_playlist_tracks(self, playlist_mbid: str) -> List[Dict]:
+    def get_recommendations_from_playlists(self, limit: int = 50, playlist_filter: str = None) -> List[Dict]:
         """
-        Fetch tracks from a specific playlist by MBID.
-        Returns list of tracks with artist and title.
+        Fetch tracks from 'Created For You' playlists.
+        
+        Args:
+            limit: Maximum number of tracks to return
+            playlist_filter: Optional string to filter playlists by name (e.g., "Weekly Jams", "Daily")
         """
-        logger.info("Fetching playlist tracks for: %s", playlist_mbid)
+        logger.info("Fetching recommendations from 'Created For You' playlists...")
         
-        response = self._request(f"playlist/{playlist_mbid}")
+        # Get all created for you playlists
+        playlists = self.get_created_for_you_playlists()
         
-        if not response or "playlist" not in response:
-            logger.warning("Playlist not found: %s", playlist_mbid)
+        if not playlists:
             return []
         
-        tracks = []
-        playlist_data = response["playlist"]
+        # Filter playlists if requested
+        if playlist_filter:
+            playlists = [p for p in playlists if playlist_filter.lower() in p.get("title", "").lower()]
+            logger.info("Filtered to %d playlists matching '%s'", len(playlists), playlist_filter)
         
-        # Extract tracks from JSPF format
-        for track in playlist_data.get("track", []):
-            # Get artist and title from track metadata
-            artist = track.get("creator", "Unknown")
-            title = track.get("title", "Unknown")
+        # Collect tracks from playlists
+        all_tracks = []
+        for playlist in playlists:
+            # Try multiple ways to get the playlist MBID
+            playlist_mbid = None
             
-            tracks.append({
-                "artist": artist,
-                "title": title,
-                "mbid": track.get("identifier", [""])[0].split("/")[-1] if track.get("identifier") else None
-            })
+            # Method 1: Direct identifier field
+            if "identifier" in playlist:
+                playlist_mbid = playlist["identifier"].split("/")[-1]
+            
+            # Method 2: Check if it's a full JSPF with nested structure
+            elif "playlist" in playlist and "identifier" in playlist["playlist"]:
+                identifier = playlist["playlist"]["identifier"]
+                if isinstance(identifier, str):
+                    playlist_mbid = identifier.split("/")[-1]
+                elif isinstance(identifier, list) and len(identifier) > 0:
+                    playlist_mbid = identifier[0].split("/")[-1]
+            
+            # Method 3: Check for mbid field
+            elif "mbid" in playlist:
+                playlist_mbid = playlist["mbid"]
+            
+            # Method 4: Check for id field
+            elif "id" in playlist:
+                playlist_mbid = playlist["id"]
+            
+            if not playlist_mbid:
+                logger.warning("Could not find MBID for playlist: %s", playlist.get("title", "Unknown"))
+                logger.debug("Playlist structure: %s", list(playlist.keys()))
+                continue
+            
+            logger.debug("Fetching tracks for playlist: %s (MBID: %s)", 
+                        playlist.get("title", "Unknown"), playlist_mbid)
+            
+            tracks = self.get_playlist_tracks(playlist_mbid)
+            
+            # Add playlist info to each track
+            for track in tracks:
+                track["playlist"] = playlist.get("title", "Unknown")
+            
+            all_tracks.extend(tracks)
+            
+            # Stop if we've reached the limit
+            if len(all_tracks) >= limit:
+                break
         
-        logger.info("Found %d tracks in playlist", len(tracks))
-        return tracks
+        # Limit results
+        all_tracks = all_tracks[:limit]
+        logger.info("Returning %d total tracks from playlists", len(all_tracks))
+        return all_tracks
+
 
     def get_recommendations_from_playlists(self, limit: int = 50, playlist_filter: str = None) -> List[Dict]:
         """
