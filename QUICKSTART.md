@@ -394,7 +394,6 @@ docker logs octogen | grep "Timezone:"
 
 ## 📖 More Information
 
-- **Complete setup**: See [GITHUB_WEB_UI_SETUP.md](GITHUB_WEB_UI_SETUP.md)
 - **All variables**: See [ENV_VARS.md](ENV_VARS.md)
 - **Full docs**: See [README.md](README.md)
 - **Cron expressions**: https://crontab.guru
@@ -409,4 +408,4 @@ docker logs octogen | grep "Timezone:"
 
 ---
 
-**That's it! You're running OctoGen with automatic scheduling.** 🎉
+**That's it! You're running OctoGen now.** 🎉
