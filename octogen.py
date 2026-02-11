@@ -1498,12 +1498,23 @@ class OctoGenEngine:
                     self.create_playlist("Last.fm Recommended", recs, 50)
 
             if self.listenbrainz:
-                logger.info("=" * 70)
-                logger.info("LISTENBRAINZ RECOMMENDATIONS")
-                logger.info("=" * 70)
-                recs = self.listenbrainz.get_recommendations(50)
-                if recs:
-                    self.create_playlist("ListenBrainz Mix", recs, 50)
+                logger.info("Creating ListenBrainz 'Created For You' playlists...")
+                lb_playlists = self.listenbrainz.get_created_for_you_playlists()
+                
+                for lb_playlist in lb_playlists:
+                    playlist_name = lb_playlist.get("title", "Unknown")
+                    playlist_mbid = lb_playlist["identifier"].split("/")[-1]
+                    tracks = self.listenbrainz.get_playlist_tracks(playlist_mbid)
+                    
+                    # Search for songs in Navidrome
+                    found_ids = []
+                    for track in tracks[:50]:  # Limit to 50
+                        song_id = self.nd.search_song(track["artist"], track["title"])
+                        if song_id:
+                            found_ids.append(song_id)
+                    
+                    if found_ids:
+                        self.nd.create_playlist(f"LB: {playlist_name}", found_ids)
 
             # Summary
             elapsed = datetime.now() - start_time
