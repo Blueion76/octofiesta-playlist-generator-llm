@@ -1531,7 +1531,7 @@ class OctoGenEngine:
                     found_ids = []
                     for track in tracks[:50]:
                         # Use the same processing as AI recommendations (includes download)
-                        song_id = self.process_single_recommendation(track)
+                        song_id = self._process_single_recommendation(track)
                         if song_id:
                             found_ids.append(song_id)
                     
