@@ -1485,9 +1485,8 @@ class OctoGenEngine:
                         continue
                     
                     # Determine if this is current week or last week
-                    from datetime import datetime, timedelta
+                    # NO IMPORT HERE - datetime is already imported at top of file
                     
-                    # Extract date from playlist name (format: "Weekly Exploration for blueion, week of 2026-02-09 Mon")
                     renamed_playlist = None
                     should_process = True
                     
@@ -1538,6 +1537,7 @@ class OctoGenEngine:
                     
                     if found_ids:
                         self.nd.create_playlist(renamed_playlist, found_ids)
+
 
 
 
