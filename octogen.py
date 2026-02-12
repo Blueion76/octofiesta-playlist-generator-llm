@@ -1468,7 +1468,6 @@ class OctoGenEngine:
                 for lb_playlist in lb_playlists:
                     # The data is nested inside a "playlist" key
                     playlist_data = lb_playlist.get("playlist", {})
-                    
                     playlist_name = playlist_data.get("title", "Unknown")
                     
                     # Get the identifier from the nested structure
@@ -1485,18 +1484,61 @@ class OctoGenEngine:
                         logger.error("Cannot find playlist ID for: %s", playlist_name)
                         continue
                     
-                    logger.info("Processing: %s (MBID: %s)", playlist_name, playlist_mbid)
+                    # Determine if this is current week or last week
+                    from datetime import datetime, timedelta
+                    
+                    # Extract date from playlist name (format: "Weekly Exploration for blueion, week of 2026-02-09 Mon")
+                    renamed_playlist = None
+                    should_process = True
+                    
+                    if "Weekly Exploration" in playlist_name and "week of" in playlist_name:
+                        try:
+                            # Extract the date string
+                            date_part = playlist_name.split("week of ")[1].split()[0]  # Gets "2026-02-09"
+                            playlist_date = datetime.strptime(date_part, "%Y-%m-%d")
+                            
+                            # Calculate start of current week (Monday)
+                            today = datetime.now()
+                            start_of_this_week = today - timedelta(days=today.weekday())
+                            start_of_last_week = start_of_this_week - timedelta(days=7)
+                            
+                            # Compare dates (ignoring time)
+                            playlist_week_start = playlist_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                            this_week_start = start_of_this_week.replace(hour=0, minute=0, second=0, microsecond=0)
+                            last_week_start = start_of_last_week.replace(hour=0, minute=0, second=0, microsecond=0)
+                            
+                            if playlist_week_start == this_week_start:
+                                renamed_playlist = "LB: Weekly Exploration"
+                            elif playlist_week_start == last_week_start:
+                                renamed_playlist = "LB: Last Week's Exploration"
+                            else:
+                                # Older than 2 weeks - skip
+                                logger.info("Skipping old Weekly Exploration: %s (keeping only last 2 weeks)", playlist_name)
+                                should_process = False
+                        except Exception as e:
+                            logger.warning("Could not parse date from playlist: %s", playlist_name)
+                            renamed_playlist = f"LB: {playlist_name}"
+                    else:
+                        # Non-weekly playlists (Daily Jams, etc.)
+                        renamed_playlist = f"LB: {playlist_name}"
+                    
+                    if not should_process:
+                        continue
+                    
+                    logger.info("Processing: %s -> %s (MBID: %s)", playlist_name, renamed_playlist, playlist_mbid)
                     tracks = self.listenbrainz.get_playlist_tracks(playlist_mbid)
                     
-                    # Search for songs in Navidrome
+                    # Process songs with download support (limit to 50)
                     found_ids = []
-                    for track in tracks[:50]:  # Limit to 50
-                        song_id = self.nd.search_song(track["artist"], track["title"])
+                    for track in tracks[:50]:
+                        # Use the same processing as AI recommendations (includes download)
+                        song_id = self.process_single_recommendation(track)
                         if song_id:
                             found_ids.append(song_id)
                     
                     if found_ids:
-                        self.nd.create_playlist(f"LB: {playlist_name}", found_ids)
+                        self.nd.create_playlist(renamed_playlist, found_ids)
+
 
 
 
