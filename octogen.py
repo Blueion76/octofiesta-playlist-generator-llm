@@ -31,7 +31,7 @@ import sqlite3
 import asyncio
 import aiohttp
 import difflib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Set
 from collections import Counter
@@ -1752,7 +1752,12 @@ class OctoGenEngine:
                     return True
                 
                 last_run = datetime.fromisoformat(last_run_str)
-                now = datetime.now()
+                now = datetime.now(timezone.utc)
+                
+                # Ensure last_run is timezone-aware for comparison
+                if last_run.tzinfo is None:
+                    last_run = last_run.replace(tzinfo=timezone.utc)
+                
                 hours_since_last = (now - last_run).total_seconds() / 3600
                 
                 if hours_since_last < cooldown_hours:
@@ -1778,11 +1783,13 @@ class OctoGenEngine:
         run_tracker_file = BASE_DIR / "octogen_last_run.json"
         
         try:
+            # Use single timestamp to ensure consistency
+            now = datetime.now(timezone.utc)
             with open(run_tracker_file, 'w') as f:
                 json.dump({
-                    'last_run_timestamp': datetime.now().isoformat(),
-                    'last_run_date': datetime.now().strftime("%Y-%m-%d"),
-                    'last_run_formatted': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    'last_run_timestamp': now.isoformat(),
+                    'last_run_date': now.strftime("%Y-%m-%d"),
+                    'last_run_formatted': now.strftime("%Y-%m-%d %H:%M:%S")
                 }, f, indent=2)
             logger.info("✓ Recorded successful run timestamp")
         except Exception as e:
@@ -2204,7 +2211,7 @@ def calculate_cron_interval(cron_expression: str) -> float:
     
     try:
         from croniter import croniter
-        cron = croniter(cron_expression, datetime.now())
+        cron = croniter(cron_expression, datetime.now(timezone.utc))
         
         # Get next 10 run times to find shortest interval
         runs = [cron.get_next(datetime) for _ in range(10)]
