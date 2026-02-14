@@ -1271,13 +1271,31 @@ CRITICAL RULES:
             logger.error("JSON parse error at line %d col %d: %s", e.lineno, e.colno, e.msg)
             return {}
         except Exception as e:
+            error_msg = str(e).lower()
+            error_type = type(e).__name__
+            
+            # Check if it's a rate limit error
+            is_rate_limit = any(phrase in error_msg for phrase in [
+                'rate limit', 'quota', 'too many requests', '429', 
+                'resource_exhausted', 'rate_limit_exceeded'
+            ]) or 'RateLimitError' in error_type
+            
+            if is_rate_limit:
+                # Rollback call count for rate limit errors
+                self.call_count -= 1
+                logger.warning("Rate limit error detected - call count rolled back to %d", self.call_count)
+                logger.warning("You can retry immediately as this attempt was not recorded")
+            else:
+                # For non-rate-limit errors, keep the call counted
+                logger.error("AI request failed (counted): %s", str(e)[:200])
+            
             logger.error("AI request failed: %s", str(e)[:200])
             return {}
             
     def _generate_with_retry(self, generate_func, *args, **kwargs) -> str:
         """Retry AI generation with exponential backoff for rate limits."""
         max_retries = 3
-        base_delay = 2.0
+        base_delay = 10.0
         
         for attempt in range(max_retries):
             try:
@@ -1293,6 +1311,8 @@ CRITICAL RULES:
                 ]) or 'RateLimitError' in error_type
                 
                 if attempt == max_retries - 1:
+                    if is_rate_limit:
+                        logger.warning("💡 Tip: Consider using a different AI provider or model with higher limits")
                     raise  # Last attempt, let it fail
                 
                 if is_rate_limit:
@@ -1765,6 +1785,15 @@ class OctoGenEngine:
                 )
     
                 self.stats["ai_calls"] = self.ai.call_count
+    
+                # If AI failed and no external services, exit with error
+                if not all_playlists and not self.lastfm and not self.listenbrainz:
+                    logger.error("=" * 70)
+                    logger.error("❌ AI generation failed and no external services configured")
+                    logger.error("❌ Nothing to process - exiting with error")
+                    logger.error("=" * 70)
+                    write_health_status("unhealthy", "AI rate limit hit, no fallback available")
+                    sys.exit(1)
     
                 if all_playlists:
                     for playlist_name, songs in all_playlists.items():
