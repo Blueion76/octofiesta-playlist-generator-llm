@@ -1118,13 +1118,16 @@ CRITICAL RULES:
         
         try:
             if self.backend == "gemini":
-                content = self._generate_with_gemini(
+                content = self._generate_with_retry(
+                    self._generate_with_gemini,
                     top_artists, top_genres, favorited_songs, low_rated_songs
                 )
             else:
-                content = self._generate_with_openai(
+                content = self._generate_with_retry(
+                    self._generate_with_openai,
                     top_artists, top_genres, favorited_songs, low_rated_songs
                 )
+
             
             # Clean JSON
             content = re.sub(r'^```(?:json)?\s*', '', content, flags=re.MULTILINE)
@@ -1176,6 +1179,42 @@ CRITICAL RULES:
         except Exception as e:
             logger.error("AI request failed: %s", str(e)[:200])
             return {}
+            
+    def _generate_with_retry(self, generate_func, *args, **kwargs) -> str:
+        """Retry AI generation with exponential backoff for rate limits."""
+        max_retries = 3
+        base_delay = 2.0
+        
+        for attempt in range(max_retries):
+            try:
+                return generate_func(*args, **kwargs)
+            except Exception as e:
+                error_msg = str(e).lower()
+                error_type = type(e).__name__
+                
+                # Check if it's a rate limit error (works for both Gemini and OpenAI)
+                is_rate_limit = any(phrase in error_msg for phrase in [
+                    'rate limit', 'quota', 'too many requests', '429', 
+                    'resource_exhausted', 'rate_limit_exceeded'
+                ]) or 'RateLimitError' in error_type
+                
+                if attempt == max_retries - 1:
+                    raise  # Last attempt, let it fail
+                
+                if is_rate_limit:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        "Rate limit hit [%s] (attempt %d/%d). Retrying in %.1fs...",
+                        error_type, attempt + 1, max_retries, delay
+                    )
+                    time.sleep(delay)
+                else:
+                    # Not a rate limit error, fail immediately
+                    logger.error("Non-rate-limit error: %s", str(e)[:200])
+                    raise
+        
+        raise Exception("Max retries exceeded")
+        
 
 # ============================================================================
 # MAIN ENGINE
