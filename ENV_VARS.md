@@ -299,6 +299,49 @@ TZ=America/Chicago
 
 ---
 
+### MIN_RUN_INTERVAL_HOURS
+**Description**: Minimum hours between runs in manual mode (cooldown period)  
+**Default**: `6`  
+**Range**: `1` to `48`  
+**Example**:
+```bash
+MIN_RUN_INTERVAL_HOURS=6
+```
+**Notes**:
+- **Only used in manual mode** (when `SCHEDULE_CRON` is not set or set to `manual`)
+- Prevents duplicate runs from container restarts or manual triggers
+- In scheduled mode (with `SCHEDULE_CRON`), cooldown is automatically calculated from cron expression
+- Automatic cooldown = 90% of detected cron interval (e.g., 6h cron → 5.4h cooldown)
+- Set lower (e.g., 4h) if you want to allow more frequent manual runs
+- Set higher (e.g., 12h) if you want to enforce longer gaps between runs
+
+**How It Works**:
+- **Scheduled mode** (`SCHEDULE_CRON=0 */6 * * *`):
+  - Automatically detects 6h interval → uses 5.4h cooldown (90%)
+  - Prevents container restarts or manual triggers within 5.4h of last run
+  - Scheduled runs proceed normally every 6h
+- **Manual mode** (no `SCHEDULE_CRON`):
+  - Uses `MIN_RUN_INTERVAL_HOURS` as cooldown (default: 6h)
+  - Prevents running more than once per 6h
+  - Good for manual docker exec or restart protection
+
+**Examples**:
+```bash
+# Cron every 6 hours (auto cooldown: 5.4h)
+SCHEDULE_CRON=0 */6 * * *
+# MIN_RUN_INTERVAL_HOURS is ignored
+
+# Manual mode with 6h cooldown
+# MIN_RUN_INTERVAL_HOURS not set (uses default 6h)
+# or explicitly:
+MIN_RUN_INTERVAL_HOURS=6
+
+# Manual mode with custom 4h cooldown
+MIN_RUN_INTERVAL_HOURS=4
+```
+
+---
+
 ## 🟢 Last.fm Integration (Optional)
 
 ### LASTFM_ENABLED
@@ -644,12 +687,12 @@ docker logs octogen | grep "Timezone:"
 |----------|-------|-----------|
 | **Required** | 5 | NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASSWORD, OCTOFIESTA_URL, AI_API_KEY |
 | **AI Config** | 5 | AI_MODEL, AI_BACKEND, AI_BASE_URL, AI_MAX_CONTEXT_SONGS, AI_MAX_OUTPUT_TOKENS |
-| **Scheduling** | 2 | SCHEDULE_CRON, TZ |
+| **Scheduling** | 3 | SCHEDULE_CRON, TZ, MIN_RUN_INTERVAL_HOURS |
 | **Last.fm** | 3 | LASTFM_ENABLED, LASTFM_API_KEY, LASTFM_USERNAME |
 | **ListenBrainz** | 3 | LISTENBRAINZ_ENABLED, LISTENBRAINZ_USERNAME, LISTENBRAINZ_TOKEN |
 | **Performance** | 5 | PERF_ALBUM_BATCH_SIZE, PERF_MAX_ALBUMS_SCAN, PERF_SCAN_TIMEOUT, PERF_DOWNLOAD_DELAY, PERF_POST_SCAN_DELAY |
 | **System** | 2 | LOG_LEVEL, OCTOGEN_DATA_DIR |
-| **Total** | **25** | |
+| **Total** | **26** | |
 
 ---
 
