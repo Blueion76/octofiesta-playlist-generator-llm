@@ -4,7 +4,7 @@
 
 **OctoGen** automatically generates personalized music playlists for your Navidrome server using AI. It creates 11 curated playlists with over 350 songs, seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
 
-Please note this project was mostly compiled by Claude Code. Pull requests and rewrites are welcome.
+Built with AI assistance. Contributions and pull requests welcome!
 
 ---
 
@@ -497,7 +497,7 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 ## 📚 Documentation
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
-- **[ENV_VARS.md](ENV_VARS.md)** - Complete variable reference (25 variables)
+- **[ENV_VARS.md](ENV_VARS.md)** - Complete variable reference (26 variables)
 
 ---
 

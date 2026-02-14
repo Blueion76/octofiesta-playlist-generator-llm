@@ -88,7 +88,7 @@ services:
       OCTOFIESTA_URL: http://octofiesta:8080
       AI_API_KEY: ${GEMINI_API_KEY}
 
-      # Scheduling (NEW!)
+      # Scheduling
       SCHEDULE_CRON: "0 6 * * *"  # Daily at 6 AM
       TZ: America/Chicago
 
@@ -238,7 +238,7 @@ Shows what would happen without:
 
 ---
 
-## ⏰ Built-in Scheduling (NEW!)
+## ⏰ Built-in Scheduling
 
 OctoGen now has **built-in cron scheduling** - no external cron daemon needed!
 
