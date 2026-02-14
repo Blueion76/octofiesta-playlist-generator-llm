@@ -30,6 +30,7 @@ import atexit
 import sqlite3
 import asyncio
 import aiohttp
+import difflib
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Set
@@ -523,6 +524,19 @@ class OctoFiestarrTrigger:
 
 class NavidromeAPI:
     """Navidrome/Subsonic API with star rating support and async operations."""
+    
+    # Version markers for detecting remixes, live versions, etc.
+    VERSION_MARKERS = [
+        'remix', 'mix', 'edit', 'version', 'acoustic', 'live', 'instrumental',
+        'extended', 'radio edit', 'demo', 'remaster', 'cover', 'vip', 'bootleg',
+        'mashup'
+    ]
+    
+    # Search and matching thresholds
+    MATCH_THRESHOLD = 0.75  # Minimum match score for library search (75%)
+    SIMILARITY_THRESHOLD = 0.85  # Minimum similarity for near-duplicate detection (85%)
+    LIBRARY_SEARCH_LIMIT = 30  # Max songs per search strategy in library search
+    SIMILAR_SEARCH_LIMIT = 50  # Max songs for similar song detection
 
     def __init__(self, url: str, username: str, password: str,
                  ratings_cache: RatingsCache, config: dict):
@@ -726,27 +740,164 @@ class NavidromeAPI:
         genre_counts = Counter(genres)
         return [g for g, _count in genre_counts.most_common(limit)]
 
-    def search_song(self, artist: str, title: str) -> Optional[str]:
-        """Search for a song and return its ID."""
-        response = self._request("search3", {"query": f'"{title}"', "songCount": 20})
+    def _strip_featured(self, text: str) -> str:
+        """Remove featured artist variations."""
+        text = re.sub(r'\s+feat\.?\s+.*$', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s+ft\.?\s+.*$', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s+featuring\s+.*$', '', text, flags=re.IGNORECASE)
+        return text.strip()
+    
+    def _normalize_for_comparison(self, text: str, preserve_version: bool = False) -> str:
+        """Normalize text for comparison."""
+        text = self._strip_featured(text)
+        if not preserve_version:
+            # Remove parentheses and brackets content
+            text = re.sub(r'\s*[\[\(].*?[\]\)]', '', text)
+        text = re.sub(r'[^\w\s]', ' ', text)
+        text = ' '.join(text.split())
+        return text.lower().strip()
+    
+    def _has_version_marker(self, text: str) -> Optional[str]:
+        """Check if text contains version markers and return the marker found."""
+        text_lower = text.lower()
+        for marker in self.VERSION_MARKERS:
+            # Use word boundary matching to avoid false positives
+            pattern = r'\b' + re.escape(marker) + r'\b'
+            if re.search(pattern, text_lower):
+                return marker
+        return None
+    
+    def _calculate_match_score(self, search_artist: str, search_title: str,
+                              result_artist: str, result_title: str) -> float:
+        """Calculate match score (0.0-1.0) using 50% artist + 50% title."""
+        artist_ratio = difflib.SequenceMatcher(None, search_artist, result_artist).ratio()
+        title_ratio = difflib.SequenceMatcher(None, search_title, result_title).ratio()
+        return (artist_ratio * 0.5) + (title_ratio * 0.5)
 
+    def search_song(self, artist: str, title: str) -> Optional[str]:
+        """Search for a song with fuzzy matching and version detection."""
+        
+        # Normalize search terms
+        search_artist_norm = self._normalize_for_comparison(artist, preserve_version=False)
+        search_title_norm = self._normalize_for_comparison(title, preserve_version=False)
+        search_version = self._has_version_marker(title)
+        
+        # Try multiple search strategies
+        search_queries = [
+            f'"{artist}" "{title}"',  # Exact artist and title
+            f'"{title}"',  # Title only
+            f'{artist} {title}',  # Concatenation
+        ]
+        
+        all_songs = []
+        for query in search_queries:
+            response = self._request("search3", {"query": query, "songCount": self.LIBRARY_SEARCH_LIMIT})
+            if response:
+                songs = response.get("searchResult3", {}).get("song", [])
+                all_songs.extend(songs)
+        
+        # Remove duplicates by ID
+        seen_ids = set()
+        unique_songs = []
+        for song in all_songs:
+            song_id = song.get("id")
+            if song_id and song_id not in seen_ids:
+                seen_ids.add(song_id)
+                unique_songs.append(song)
+        
+        if not unique_songs:
+            return None
+        
+        # Find best match
+        best_match = None
+        best_score = 0.0
+        
+        for song in unique_songs:
+            result_artist = song.get("artist", "")
+            result_title = song.get("title", "")
+            
+            # Normalize result
+            result_artist_norm = self._normalize_for_comparison(result_artist, preserve_version=False)
+            result_title_norm = self._normalize_for_comparison(result_title, preserve_version=False)
+            result_version = self._has_version_marker(result_title)
+            
+            # Calculate match score
+            score = self._calculate_match_score(search_artist_norm, search_title_norm,
+                                              result_artist_norm, result_title_norm)
+            
+            # Check if this is a better match
+            if score > best_score:
+                best_score = score
+                best_match = (song["id"], result_artist, result_title, result_version)
+        
+        if not best_match:
+            return None
+        
+        song_id, match_artist, match_title, match_version = best_match
+        
+        # Decision logic based on MATCH_THRESHOLD
+        if best_score >= self.MATCH_THRESHOLD:
+            # Check version compatibility
+            if search_version != match_version:
+                # Different versions - return None to trigger download
+                logger.info("Found different version: %s - %s (%.0f%% match) - search has '%s', library has '%s'",
+                          match_artist, match_title, best_score * 100,
+                          search_version or "original", match_version or "original")
+                return None
+            else:
+                # Same version or both are originals
+                logger.debug("Library match: %s - %s (%.0f%% match)",
+                           match_artist, match_title, best_score * 100)
+                return song_id
+        
+        # Score too low
+        return None
+
+    def check_for_similar_song(self, artist: str, title: str) -> Optional[str]:
+        """Check for similar songs to prevent near-duplicates before downloading."""
+        
+        # Search by artist name
+        response = self._request("search3", {"query": f'"{artist}"', "songCount": self.SIMILAR_SEARCH_LIMIT})
+        
         if not response:
             return None
-
+        
         songs = response.get("searchResult3", {}).get("song", [])
-
-        artist_lower = artist.lower().strip()
-        title_lower = title.lower().strip()
-
+        
+        if not songs:
+            return None
+        
+        # Normalize search terms
+        search_artist_norm = self._normalize_for_comparison(artist)
+        search_title_norm = self._normalize_for_comparison(title)
+        search_has_version = bool(self._has_version_marker(title))
+        
+        # Check each result for similarity
         for song in songs:
-            song_artist = song.get("artist", "").lower().strip()
-            song_title = song.get("title", "").lower().strip()
-
-            if (artist_lower in song_artist or song_artist in artist_lower) and (
-                title_lower in song_title or song_title in title_lower
-            ):
+            result_artist = song.get("artist", "")
+            result_title = song.get("title", "")
+            
+            # Check for version markers
+            result_has_version = bool(self._has_version_marker(result_title))
+            
+            # Skip if version markers differ (don't match remix to original)
+            if search_has_version != result_has_version:
+                continue
+            
+            # Normalize result
+            result_artist_norm = self._normalize_for_comparison(result_artist)
+            result_title_norm = self._normalize_for_comparison(result_title)
+            
+            # Calculate match ratios
+            artist_ratio = difflib.SequenceMatcher(None, search_artist_norm, result_artist_norm).ratio()
+            title_ratio = difflib.SequenceMatcher(None, search_title_norm, result_title_norm).ratio()
+            
+            # If both are high similarity, consider it a near-duplicate
+            if artist_ratio >= self.SIMILARITY_THRESHOLD and title_ratio >= self.SIMILARITY_THRESHOLD:
+                logger.warning("Similar song found in library: %s - %s (artist: %.0f%%, title: %.0f%%)",
+                             result_artist, result_title, artist_ratio * 100, title_ratio * 100)
                 return song["id"]
-
+        
         return None
 
     def trigger_scan(self) -> None:
@@ -1408,6 +1559,7 @@ class OctoGenEngine:
             "songs_failed": 0,
             "songs_skipped_low_rating": 0,
             "songs_skipped_duplicate": 0,
+            "duplicates_prevented": 0,
             "ai_calls": 0,
         }
 
@@ -1593,22 +1745,38 @@ class OctoGenEngine:
         if not artist or not title:
             return None
 
-        # Check for duplicates
+        # Priority 1: Check for duplicates (already processed)
         if self._is_duplicate(artist, title):
             logger.debug("Skipping duplicate: %s - %s", artist, title)
             self.stats["songs_skipped_duplicate"] += 1
             return None
 
-        # Search library
+        # Priority 2: Search library thoroughly with fuzzy matching
+        logger.debug("Checking library for: %s - %s", artist, title)
         song_id = self.nd.search_song(artist, title)
 
         if song_id:
             if self._check_and_skip_low_rating(song_id, artist, title):
                 return None
+            logger.info("Using library version: %s - %s", artist, title)
             self.stats["songs_found"] += 1
             return song_id
 
-        # Download if not found
+        # Priority 3: Check for similar songs to prevent near-duplicates
+        logger.debug("Checking for similar songs: %s - %s", artist, title)
+        similar_song_id = self.nd.check_for_similar_song(artist, title)
+        
+        if similar_song_id:
+            if self._check_and_skip_low_rating(similar_song_id, artist, title):
+                return None
+            logger.info("Using similar song from library: %s - %s", artist, title)
+            self.stats["songs_found"] += 1
+            self.stats["duplicates_prevented"] += 1
+            return similar_song_id
+
+        # Priority 4: Download only if definitely not in library
+        logger.info("Not in library, downloading: %s - %s", artist, title)
+        
         if self.dry_run:
             return None
 
@@ -1896,6 +2064,7 @@ class OctoGenEngine:
             logger.info("Playlists created: %d", self.stats["playlists_created"])
             logger.info("Songs in library: %d", self.stats["songs_found"])
             logger.info("Songs downloaded: %d", self.stats["songs_downloaded"])
+            logger.info("Near-duplicates avoided: %d", self.stats["duplicates_prevented"])
             logger.info("Songs skipped (low rating): %d", self.stats["songs_skipped_low_rating"])
             logger.info("Songs skipped (duplicate): %d", self.stats["songs_skipped_duplicate"])
             logger.info("Songs failed: %d", self.stats["songs_failed"])
