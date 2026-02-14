@@ -812,6 +812,7 @@ class AIRecommendationEngine:
         self.max_context_songs = max_context_songs
         self.max_output_tokens = max_output_tokens
         self.cache_file = CACHE_FILE
+        self.call_tracker_file = BASE_DIR / "ai_last_call.json"
 
         # State management
         self.call_count = 0
@@ -835,6 +836,36 @@ class AIRecommendationEngine:
             else:
                 self.client = OpenAI(api_key=api_key)
                 logger.info("✓ OpenAI API initialized")
+    def _can_call_ai_today(self) -> bool:
+        """Check if AI can be called today (once per day limit)."""
+        if not self.call_tracker_file.exists():
+            return True
+        
+        try:
+            with open(self.call_tracker_file, 'r') as f:
+                data = json.load(f)
+                last_call_date = data.get('last_call_date')
+                today = datetime.now().strftime("%Y-%m-%d")
+                
+                if last_call_date == today:
+                    logger.warning("AI already called today (%s). Using cached data or skipping.", today)
+                    return False
+                return True
+        except Exception as e:
+            logger.warning("Could not read call tracker: %s", str(e))
+            return True
+    
+    def _record_ai_call(self) -> None:
+        """Record that AI was called today."""
+        try:
+            with open(self.call_tracker_file, 'w') as f:
+                json.dump({
+                    'last_call_date': datetime.now().strftime("%Y-%m-%d"),
+                    'last_call_timestamp': datetime.now().isoformat()
+                }, f)
+            logger.info("Recorded AI call timestamp")
+        except Exception as e:
+            logger.error("Could not write call tracker: %s", str(e))
 
     def _build_cached_context(
         self,
@@ -1060,21 +1091,21 @@ CRITICAL RULES:
 
         return response.choices[0].message.content.strip()
 
-    def generate_all_playlists(
-        self,
-        top_artists: List[str],
-        top_genres: List[str],
-        favorited_songs: List[Dict],
-        low_rated_songs: Optional[List[Dict]] = None,
-    ) -> Dict[str, List[Dict]]:
-        """Generate playlists using configured backend."""
+    def generate_all_playlists(self, ...) -> Dict[str, List[Dict]]:
+        # Check memory cache first
         if self.response_cache is not None:
-            logger.info("Using cached AI response")
+            logger.info("Using cached AI response (in-memory)")
             return self.response_cache
-
+        
+        # Check daily limit BEFORE checking call count
+        if not self._can_call_ai_today():
+            logger.error("Daily AI call limit reached. Program can restart but won't call AI again today.")
+            return {}
+        
         if self.call_count >= self.max_calls:
             logger.error("AI call limit reached (%d)", self.max_calls)
             return {}
+
 
         logger.info("Making AI API call (%d/%d)...", self.call_count + 1, self.max_calls)
         self.call_count += 1
@@ -1125,7 +1156,9 @@ CRITICAL RULES:
                 all_playlists[playlist_name] = valid_songs
 
             self.response_cache = all_playlists
-
+            
+            self._record_ai_call()
+            
             total = sum(len(songs) for songs in all_playlists.values())
             logger.info("Generated %d playlists (%d songs)", len(all_playlists), total)
             return all_playlists
