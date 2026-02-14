@@ -18,6 +18,8 @@ import sys
 import os
 import json
 import logging
+from logging.handlers import RotatingFileHandler
+
 import hashlib
 import secrets
 import requests
@@ -74,10 +76,16 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S",
     handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=10*1024*1024,  # 10MB per file
+            backupCount=5,           # Keep 5 old files
+            encoding="utf-8"
+        ),
         logging.StreamHandler(sys.stdout),
     ],
 )
+
 logger = logging.getLogger(__name__)
 
 # Constants
@@ -165,6 +173,21 @@ def acquire_lock() -> object:
     except IOError:
         logger.error("Another instance is already running!")
         sys.exit(1)
+
+def write_health_status(status: str, message: str = "") -> None:
+    """Write health status for monitoring."""
+    health_file = BASE_DIR / "health.json"
+    try:
+        with open(health_file, 'w') as f:
+            json.dump({
+                "status": status,
+                "message": message,
+                "timestamp": datetime.now().isoformat(),
+                "pid": os.getpid()
+            }, f, indent=2)
+    except Exception as e:
+        logger.warning("Could not write health status: %s", str(e))
+
 
 # ============================================================================
 # RATINGS CACHE DATABASE
@@ -813,7 +836,8 @@ class AIRecommendationEngine:
         self.max_output_tokens = max_output_tokens
         self.cache_file = CACHE_FILE
         self.call_tracker_file = BASE_DIR / "ai_last_call.json"
-
+        self.library_hash_file = BASE_DIR / "library_hash.txt"
+        
         # State management
         self.call_count = 0
         self.max_calls = 1
@@ -866,6 +890,71 @@ class AIRecommendationEngine:
             logger.info("Recorded AI call timestamp")
         except Exception as e:
             logger.error("Could not write call tracker: %s", str(e))
+            
+    def _get_library_hash(self, favorited_songs: List[Dict]) -> str:
+        """Generate hash of library for cache invalidation."""
+        import hashlib
+        
+        # Hash based on song count and sample of song IDs
+        # Using first 20 and last 20 songs to detect changes
+        sample_size = min(20, len(favorited_songs))
+        first_songs = [s.get("id", "") for s in favorited_songs[:sample_size]]
+        last_songs = [s.get("id", "") for s in favorited_songs[-sample_size:]]
+        
+        hash_input = f"{len(favorited_songs)}:{','.join(first_songs)}:{','.join(last_songs)}"
+        return hashlib.md5(hash_input.encode()).hexdigest()
+    
+    def _should_invalidate_cache(self, favorited_songs: List[Dict]) -> bool:
+        """Check if library changed significantly since last cache."""
+        current_hash = self._get_library_hash(favorited_songs)
+        
+        # If no previous hash, store current and don't invalidate
+        if not self.library_hash_file.exists():
+            logger.info("First run - storing library fingerprint")
+            try:
+                self.library_hash_file.write_text(current_hash)
+            except Exception as e:
+                logger.warning("Could not write library hash: %s", str(e))
+            return False
+        
+        try:
+            stored_hash = self.library_hash_file.read_text().strip()
+        except Exception as e:
+            logger.warning("Could not read library hash: %s", str(e))
+            return False
+        
+        if current_hash != stored_hash:
+            logger.info("Library changed detected (songs added/removed)")
+            logger.info("  Previous library fingerprint: %s", stored_hash[:8])
+            logger.info("  Current library fingerprint:  %s", current_hash[:8])
+            
+            # Update stored hash
+            try:
+                self.library_hash_file.write_text(current_hash)
+            except Exception as e:
+                logger.warning("Could not update library hash: %s", str(e))
+            
+            return True
+        
+        return False
+    
+    def _invalidate_cache(self) -> None:
+        """Invalidate all caches (in-memory and on-disk)."""
+        logger.info("Invalidating AI caches...")
+        
+        # Clear in-memory cache
+        self.response_cache = None
+        
+        # Delete Gemini cache file
+        if self.cache_file.exists():
+            try:
+                self.cache_file.unlink()
+                logger.info("  Deleted Gemini cache file")
+            except Exception as e:
+                logger.warning("  Could not delete cache file: %s", str(e))
+        
+        # Note: We don't delete call tracker to preserve daily limit
+        logger.info("Cache invalidation complete")
 
     def _build_cached_context(
         self,
@@ -1099,6 +1188,11 @@ CRITICAL RULES:
         low_rated_songs: Optional[List[Dict]] = None,
     ) -> Dict[str, List[Dict]]:
         """Generate playlists using configured backend."""
+
+        #Check if library changed and invalidate cache if needed
+        if self._should_invalidate_cache(favorited_songs):
+            self._invalidate_cache()
+        
         # Check memory cache first
         if self.response_cache is not None:
             logger.info("Using cached AI response (in-memory)")
@@ -1391,7 +1485,68 @@ class OctoGenEngine:
 
     def _validate_env_config(self) -> None:
         """Validate environment configuration"""
-        logger.info("✅ Configuration loaded from environment variables")
+        errors = []
+        
+        # Validate URLs
+        for name, url in [
+            ("Navidrome", self.config["navidrome"]["url"]),
+            ("Octo-Fiesta", self.config["octofiestarr"]["url"])
+        ]:
+            if not url:
+                errors.append(f"{name} URL is empty")
+            elif not url.startswith(("http://", "https://")):
+                errors.append(f"Invalid {name} URL: {url} (must start with http:// or https://)")
+            elif url.endswith("/"):
+                logger.warning("%s URL ends with '/'. This will be stripped automatically.", name)
+        
+        # Validate AI API key
+        if not self.config["ai"]["api_key"]:
+            errors.append("AI_API_KEY is empty")
+        elif self.config["ai"]["api_key"] in ["your-api-key-here", "changeme", "INSERT_KEY_HERE"]:
+            errors.append("AI_API_KEY appears to be a placeholder - please set a real API key")
+        elif len(self.config["ai"]["api_key"]) < 20:
+            errors.append("AI_API_KEY seems too short - verify it's a valid key")
+        
+        # Validate AI model for backend
+        backend = self.config["ai"]["backend"]
+        model = self.config["ai"]["model"]
+        
+        if backend == "gemini" and not model.startswith("gemini"):
+            logger.warning("Backend is 'gemini' but model is '%s' - this may cause errors", model)
+        elif backend == "openai" and model.startswith("gemini"):
+            logger.warning("Backend is 'openai' but model is '%s' - this may cause errors", model)
+        
+        # Validate optional services
+        if self.config.get("lastfm", {}).get("enabled", False):
+            if not self.config["lastfm"].get("api_key"):
+                errors.append("Last.fm is enabled but LASTFM_API_KEY is empty")
+            if not self.config["lastfm"].get("username"):
+                errors.append("Last.fm is enabled but LASTFM_USERNAME is empty")
+        
+        if self.config.get("listenbrainz", {}).get("enabled", False):
+            if not self.config["listenbrainz"].get("username"):
+                errors.append("ListenBrainz is enabled but LISTENBRAINZ_USERNAME is empty")
+        
+        # Validate performance settings
+        perf = self.config.get("performance", {})
+        if perf.get("download_delay_seconds", 10) < 1:
+            logger.warning("PERF_DOWNLOAD_DELAY is very low (%ds) - may cause issues", 
+                          perf["download_delay_seconds"])
+        
+        # Report errors
+        if errors:
+            logger.error("=" * 70)
+            logger.error("CONFIGURATION ERRORS FOUND:")
+            logger.error("=" * 70)
+            for error in errors:
+                logger.error("  ❌ %s", error)
+            logger.error("=" * 70)
+            logger.error("Please fix the above errors and try again.")
+            logger.error("See your environment variables or docker-compose.yml")
+            sys.exit(1)
+        
+        logger.info("✅ Configuration validated successfully")
+
 
     def _is_duplicate(self, artist: str, title: str) -> bool:
         """Check if song was already processed."""
@@ -1466,15 +1621,88 @@ class OctoGenEngine:
         recommendations: List[Dict],
         max_songs: int = 100,
     ) -> List[str]:
-        """Process recommendations and return song IDs."""
+        """Process recommendations with batched scanning."""
         song_ids: List[str] = []
-
-        for rec in recommendations[:max_songs]:
-            song_id = self._process_single_recommendation(rec)
+        needs_download = []
+        total = min(len(recommendations), max_songs)
+        
+        logger.info("Processing playlist '%s': %d songs to check", playlist_name, total)
+        
+        # Phase 1: Check library and collect songs that need downloading
+        for idx, rec in enumerate(recommendations[:max_songs], 1):
+            artist = (rec.get("artist") or "").strip()
+            title = (rec.get("title") or "").strip()
+            
+            if not artist or not title:
+                continue
+            
+            # Check for duplicates
+            if self._is_duplicate(artist, title):
+                logger.debug("Skipping duplicate: %s - %s", artist, title)
+                self.stats["songs_skipped_duplicate"] += 1
+                continue
+            
+            # Progress logging
+            if idx % 10 == 0 or idx == 1 or idx == total:
+                logger.info("  [%s] Checking library: %d/%d", playlist_name, idx, total)
+            
+            # Search in library first
+            song_id = self.nd.search_song(artist, title)
             if song_id:
-                song_ids.append(song_id)
-
+                if not self._check_and_skip_low_rating(song_id, artist, title):
+                    song_ids.append(song_id)
+                    self.stats["songs_found"] += 1
+            else:
+                # Mark for download
+                needs_download.append((artist, title))
+        
+        # Phase 2: Batch download all missing songs
+        if needs_download and not self.dry_run:
+            logger.info("  [%s] Downloading %d missing songs in batch...", playlist_name, len(needs_download))
+            
+            downloaded_count = 0
+            for idx, (artist, title) in enumerate(needs_download, 1):
+                if idx % 5 == 0 or idx == 1 or idx == len(needs_download):
+                    logger.info("  [%s] Download progress: %d/%d", playlist_name, idx, len(needs_download))
+                
+                success, _result = self.octo.search_and_trigger_download(artist, title)
+                if success:
+                    downloaded_count += 1
+            
+            if downloaded_count > 0:
+                # Single scan for all downloads
+                logger.info("  [%s] Waiting for downloads to settle...", playlist_name)
+                wait_time = self.download_delay * min(downloaded_count, 5)  # Scale wait time, max 5x
+                time.sleep(wait_time)
+                
+                logger.info("  [%s] Triggering library scan...", playlist_name)
+                self.nd.trigger_scan()
+                self.nd.wait_for_scan()
+                time.sleep(self.post_scan_delay)
+                
+                # Phase 3: Re-search for downloaded songs
+                logger.info("  [%s] Checking for downloaded songs...", playlist_name)
+                for artist, title in needs_download:
+                    song_id = self.nd.search_song(artist, title)
+                    if song_id:
+                        if not self._check_and_skip_low_rating(song_id, artist, title):
+                            song_ids.append(song_id)
+                            self.stats["songs_downloaded"] += 1
+                    else:
+                        self.stats["songs_failed"] += 1
+            else:
+                logger.warning("  [%s] All %d download attempts failed", playlist_name, len(needs_download))
+                self.stats["songs_failed"] += len(needs_download)
+        
+        elif needs_download and self.dry_run:
+            logger.info("  [%s] [DRY RUN] Would download %d songs", playlist_name, len(needs_download))
+        
+        logger.info("  [%s] Complete: %d/%d songs added to playlist", 
+                    playlist_name, len(song_ids), total)
+        
         return song_ids
+
+
 
     def create_playlist(self, name: str, recommendations: List[Dict],
                        max_songs: int = 100) -> None:
@@ -1494,44 +1722,56 @@ class OctoGenEngine:
         """Run the main discovery engine."""
         start_time = datetime.now()
 
+        write_health_status("starting", "Initializing OctoGen")
+        
         logger.info("=" * 70)
         logger.info("OCTOGEN - Starting: %s", start_time.strftime("%Y-%m-%d %H:%M:%S"))
         logger.info("=" * 70)
-
+    
         try:
+
+            write_health_status("running", "Analyzing music library")
             # Analyze library
             logger.info("Analyzing music library...")
             favorited_songs = self.nd.get_starred_songs()
-            top_artists = self.nd.get_top_artists(100)
-            top_genres = self.nd.get_top_genres(20)
-            low_rated_songs = self.nd.get_low_rated_songs()
-
-            logger.info("Library: %d favorited songs", len(favorited_songs))
-            logger.info("Top artists: %s", ", ".join(top_artists[:5]))
-            logger.info("Top genres: %s", ", ".join(top_genres[:5]))
-            logger.info("Songs to avoid: %d (rated %d-%d stars)",
-                       len(low_rated_songs), LOW_RATING_MIN, LOW_RATING_MAX)
-
-            # Generate AI playlists
-            logger.info("=" * 70)
-            logger.info("AI CALL LIMIT: %d maximum", self.ai.max_calls)
-            logger.info("=" * 70)
-
-            all_playlists = self.ai.generate_all_playlists(
-                top_artists,
-                top_genres,
-                favorited_songs,
-                low_rated_songs
-            )
-
-            self.stats["ai_calls"] = self.ai.call_count
-
-            if all_playlists:
-                for playlist_name, songs in all_playlists.items():
-                    if isinstance(songs, list) and songs:
-                        self.create_playlist(playlist_name, songs, max_songs=100)
-
-            # External services
+    
+            if not favorited_songs:
+                logger.error("No starred songs found! Please star some songs in Navidrome first.")
+                logger.info("Attempting Last.fm and ListenBrainz recommendations only...")
+                # Skip AI generation but continue with external services
+                all_playlists = {}
+            else:
+                # Continue with normal AI generation
+                top_artists = self.nd.get_top_artists(100)
+                top_genres = self.nd.get_top_genres(20)
+                low_rated_songs = self.nd.get_low_rated_songs()
+    
+                logger.info("Library: %d favorited songs", len(favorited_songs))
+                logger.info("Top artists: %s", ", ".join(top_artists[:5]))
+                logger.info("Top genres: %s", ", ".join(top_genres[:5]))
+                logger.info("Songs to avoid: %d (rated %d-%d stars)",
+                           len(low_rated_songs), LOW_RATING_MIN, LOW_RATING_MAX)
+    
+                # Generate AI playlists
+                logger.info("=" * 70)
+                logger.info("AI CALL LIMIT: %d maximum", self.ai.max_calls)
+                logger.info("=" * 70)
+    
+                all_playlists = self.ai.generate_all_playlists(
+                    top_artists,
+                    top_genres,
+                    favorited_songs,
+                    low_rated_songs
+                )
+    
+                self.stats["ai_calls"] = self.ai.call_count
+    
+                if all_playlists:
+                    for playlist_name, songs in all_playlists.items():
+                        if isinstance(songs, list) and songs:
+                            self.create_playlist(playlist_name, songs, max_songs=100)
+    
+            # External services (run regardless of starred songs)
             if self.lastfm:
                 logger.info("=" * 70)
                 logger.info("LAST.FM RECOMMENDATIONS")
@@ -1539,7 +1779,7 @@ class OctoGenEngine:
                 recs = self.lastfm.get_recommended_tracks(50)
                 if recs:
                     self.create_playlist("Last.fm Recommended", recs, 50)
-
+    
             if self.listenbrainz:
                 logger.info("Creating ListenBrainz 'Created For You' playlists...")
                 lb_playlists = self.listenbrainz.get_created_for_you_playlists()
@@ -1564,8 +1804,6 @@ class OctoGenEngine:
                         continue
                     
                     # Determine if this is current week or last week
-                    # NO IMPORT HERE - datetime is already imported at top of file
-                    
                     renamed_playlist = None
                     should_process = True
                     
@@ -1616,15 +1854,12 @@ class OctoGenEngine:
                     
                     if found_ids:
                         self.nd.create_playlist(renamed_playlist, found_ids)
-
-
-
-
-
+    
             # Summary
             elapsed = datetime.now() - start_time
             logger.info("=" * 70)
             logger.info("COMPLETED")
+            write_health_status("healthy", f"Last run completed successfully at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info("=" * 70)
             logger.info("Total time: %dm %ds", elapsed.seconds // 60, elapsed.seconds % 60)
             logger.info("AI API calls: %d / %d", self.stats["ai_calls"], self.ai.max_calls)
@@ -1635,10 +1870,12 @@ class OctoGenEngine:
             logger.info("Songs skipped (duplicate): %d", self.stats["songs_skipped_duplicate"])
             logger.info("Songs failed: %d", self.stats["songs_failed"])
             logger.info("=" * 70)
-
+    
         except Exception as e:
-            logger.error("Fatal error: %s", e, exc_info=True)
-            sys.exit(1)
+           write_health_status("unhealthy", f"Error: {str(e)[:200]}")
+           logger.error("Fatal error: %s", e, exc_info=True)
+           sys.exit(1)
+
 
 # ============================================================================
 # SCHEDULING SUPPORT
@@ -1715,6 +1952,7 @@ def run_with_schedule(dry_run: bool = False):
             # Calculate next run time
             next_run = calculate_next_run(schedule_cron)
             logger.info("📅 Next scheduled run: %s", next_run.strftime("%Y-%m-%d %H:%M:%S"))
+            write_health_status("scheduled", f"Waiting for next run at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
 
             # Wait until next run
             wait_until(next_run)
