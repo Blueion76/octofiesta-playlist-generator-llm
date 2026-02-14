@@ -93,7 +93,8 @@ services:
       # Log level: DEBUG, INFO, WARNING, ERROR
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       
-      # Data directory (inside container) - usually don't need to change this
+      # Data directory inside container - must match volume mount path
+      # Change only if you also modify the volume mount
       OCTOGEN_DATA_DIR: ${OCTOGEN_DATA_DIR:-/data}
 
 volumes:
