@@ -1,8 +1,6 @@
 # 🎵 OctoGen - AI-Powered Music Discovery for Navidrome
 
 [![Docker Hub](https://img.shields.io/docker/pulls/blueion76/octogen?logo=docker)](https://hub.docker.com/r/blueion76/octogen)
-[![GitHub Container Registry](https://img.shields.io/badge/ghcr-latest-blue?logo=github)](https://github.com/Blueion76/Octogen/pkgs/container/octogen)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **OctoGen** automatically generates personalized music playlists for your Navidrome server using AI. It creates 11 curated playlists with over 350 songs, seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
 
