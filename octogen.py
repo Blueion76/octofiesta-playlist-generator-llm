@@ -761,7 +761,9 @@ class NavidromeAPI:
         """Check if text contains version markers and return the marker found."""
         text_lower = text.lower()
         for marker in self.VERSION_MARKERS:
-            if marker in text_lower:
+            # Use word boundary matching to avoid false positives
+            pattern = r'\b' + re.escape(marker) + r'\b'
+            if re.search(pattern, text_lower):
                 return marker
         return None
     
@@ -868,7 +870,7 @@ class NavidromeAPI:
         # Normalize search terms
         search_artist_norm = self._normalize_for_comparison(artist)
         search_title_norm = self._normalize_for_comparison(title)
-        search_has_version = self._has_version_marker(title) is not None
+        search_has_version = bool(self._has_version_marker(title))
         
         # Check each result for similarity
         for song in songs:
@@ -876,7 +878,7 @@ class NavidromeAPI:
             result_title = song.get("title", "")
             
             # Check for version markers
-            result_has_version = self._has_version_marker(result_title) is not None
+            result_has_version = bool(self._has_version_marker(result_title))
             
             # Skip if version markers differ (don't match remix to original)
             if search_has_version != result_has_version:
