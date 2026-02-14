@@ -53,8 +53,13 @@ ENV OCTOGEN_DATA_DIR=/data \
     AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 
 # Health check - verifies log file exists and was updated recently
-HEALTHCHECK --interval=5m --timeout=10s --start-period=30s --retries=3 \
-    CMD test -f /data/octogen.log || exit 1
+HEALTHCHECK --interval=5m --timeout=30s --start-period=30s --retries=3 \
+  CMD python3 -c "import json, sys, os; \
+       from pathlib import Path; \
+       health = json.loads(Path(os.getenv('OCTOGEN_DATA_DIR', '/data'), 'health.json').read_text()); \
+       sys.exit(0 if health['status'] in ['healthy', 'running', 'scheduled'] else 1)" \
+  || exit 1
+
 
 # Expose data volume
 VOLUME ["/data"]
