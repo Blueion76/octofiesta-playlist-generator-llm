@@ -1091,7 +1091,14 @@ CRITICAL RULES:
 
         return response.choices[0].message.content.strip()
 
-    def generate_all_playlists(self, ...) -> Dict[str, List[Dict]]:
+    def generate_all_playlists(
+        self,
+        top_artists: List[str],
+        top_genres: List[str],
+        favorited_songs: List[Dict],
+        low_rated_songs: Optional[List[Dict]] = None,
+    ) -> Dict[str, List[Dict]]:
+        """Generate playlists using configured backend."""
         # Check memory cache first
         if self.response_cache is not None:
             logger.info("Using cached AI response (in-memory)")
@@ -1105,11 +1112,10 @@ CRITICAL RULES:
         if self.call_count >= self.max_calls:
             logger.error("AI call limit reached (%d)", self.max_calls)
             return {}
-
-
+        
         logger.info("Making AI API call (%d/%d)...", self.call_count + 1, self.max_calls)
         self.call_count += 1
-
+        
         try:
             if self.backend == "gemini":
                 content = self._generate_with_gemini(
@@ -1119,50 +1125,51 @@ CRITICAL RULES:
                 content = self._generate_with_openai(
                     top_artists, top_genres, favorited_songs, low_rated_songs
                 )
-
+            
             # Clean JSON
             content = re.sub(r'^```(?:json)?\s*', '', content, flags=re.MULTILINE)
             content = re.sub(r'\s*```$', '', content, flags=re.MULTILINE)
             content = content.strip()
-
+            
             json_start = content.find('{')
             json_end = content.rfind('}')
             if json_start != -1 and json_end != -1:
                 content = content[json_start:json_end + 1]
-
+            
             logger.info("AI response length: %d chars", len(content))
-
+            
             if not content.endswith('}'):
                 logger.error("Response incomplete - missing closing brace")
                 return {}
-
+            
             all_playlists = json.loads(content)
-
+            
             if not isinstance(all_playlists, dict):
                 logger.error("AI response is not a JSON object")
                 return {}
-
+            
             # Validate and clean
             for playlist_name, songs in list(all_playlists.items()):
                 if not isinstance(songs, list):
                     logger.warning("Invalid format for %s", playlist_name)
                     all_playlists[playlist_name] = []
                     continue
-
+                
                 valid_songs = [
                     song for song in songs
                     if isinstance(song, dict) and "artist" in song and "title" in song
                 ]
                 all_playlists[playlist_name] = valid_songs
-
+            
             self.response_cache = all_playlists
             
+            # Record the AI call timestamp
             self._record_ai_call()
             
             total = sum(len(songs) for songs in all_playlists.values())
             logger.info("Generated %d playlists (%d songs)", len(all_playlists), total)
             return all_playlists
-
+            
         except json.JSONDecodeError as e:
             logger.error("JSON parse error at line %d col %d: %s", e.lineno, e.colno, e.msg)
             return {}
