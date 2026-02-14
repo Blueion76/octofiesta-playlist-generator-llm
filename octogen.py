@@ -31,7 +31,7 @@ import sqlite3
 import asyncio
 import aiohttp
 import difflib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Set
 from collections import Counter
@@ -1719,6 +1719,81 @@ class OctoGenEngine:
         
         logger.info("✅ Configuration validated successfully")
 
+    def _check_run_cooldown(self) -> bool:
+        """Check if enough time has passed since last run.
+        
+        Returns True if we should run, False if still in cooldown.
+        """
+        run_tracker_file = BASE_DIR / "octogen_last_run.json"
+        
+        # Determine cooldown period
+        schedule_cron = os.getenv("SCHEDULE_CRON", "").strip()
+        
+        if schedule_cron and schedule_cron.lower() not in ("manual", "false", "no", "off", "disabled"):
+            # Use 90% of detected cron interval
+            detected_interval = calculate_cron_interval(schedule_cron)
+            cooldown_hours = detected_interval * 0.9
+            logger.info("🕐 Cooldown period: %.1f hours (90%% of cron interval)", cooldown_hours)
+        else:
+            # Manual mode - use environment variable
+            cooldown_hours = float(os.getenv("MIN_RUN_INTERVAL_HOURS", "6"))
+            logger.info("🕐 Cooldown period: %.1f hours (manual mode)", cooldown_hours)
+        
+        # Check last run time
+        if not run_tracker_file.exists():
+            return True  # First run ever
+        
+        try:
+            with open(run_tracker_file, 'r') as f:
+                data = json.load(f)
+                last_run_str = data.get('last_run_timestamp')
+                
+                if not last_run_str:
+                    return True
+                
+                last_run = datetime.fromisoformat(last_run_str)
+                now = datetime.now(timezone.utc)
+                
+                # Ensure last_run is timezone-aware for comparison
+                if last_run.tzinfo is None:
+                    last_run = last_run.replace(tzinfo=timezone.utc)
+                
+                hours_since_last = (now - last_run).total_seconds() / 3600
+                
+                if hours_since_last < cooldown_hours:
+                    logger.warning("=" * 70)
+                    logger.warning("⏭️  OctoGen ran %.1f hours ago (cooldown: %.1f hours)", 
+                                 hours_since_last, cooldown_hours)
+                    logger.warning("⏭️  Skipping to prevent duplicate run")
+                    logger.warning("⏭️  Last run: %s", last_run.strftime("%Y-%m-%d %H:%M:%S"))
+                    logger.warning("⏭️  Next run allowed after: %s", 
+                                 (last_run + timedelta(hours=cooldown_hours)).strftime("%Y-%m-%d %H:%M:%S"))
+                    logger.warning("=" * 70)
+                    return False
+                
+                logger.info("✅ Cooldown passed (%.1f hours since last run)", hours_since_last)
+                return True
+                
+        except Exception as e:
+            logger.warning("Could not read run tracker: %s", str(e))
+            return True  # Allow run if we can't read tracker
+
+    def _record_successful_run(self) -> None:
+        """Record that a successful run completed."""
+        run_tracker_file = BASE_DIR / "octogen_last_run.json"
+        
+        try:
+            # Use single timestamp to ensure consistency
+            now = datetime.now(timezone.utc)
+            with open(run_tracker_file, 'w') as f:
+                json.dump({
+                    'last_run_timestamp': now.isoformat(),
+                    'last_run_date': now.strftime("%Y-%m-%d"),
+                    'last_run_formatted': now.strftime("%Y-%m-%d %H:%M:%S")
+                }, f, indent=2)
+            logger.info("✓ Recorded successful run timestamp")
+        except Exception as e:
+            logger.error("Could not write run tracker: %s", str(e))
 
     def _is_duplicate(self, artist: str, title: str) -> bool:
         """Check if song was already processed."""
@@ -1915,6 +1990,11 @@ class OctoGenEngine:
         logger.info("=" * 70)
         logger.info("OCTOGEN - Starting: %s", start_time.strftime("%Y-%m-%d %H:%M:%S"))
         logger.info("=" * 70)
+
+        # Check cooldown before proceeding
+        if not self._check_run_cooldown():
+            write_health_status("skipped", "Cooldown active - skipping run to prevent duplicate")
+            return  # Exit early
     
         try:
 
@@ -2069,6 +2149,9 @@ class OctoGenEngine:
             logger.info("Songs skipped (duplicate): %d", self.stats["songs_skipped_duplicate"])
             logger.info("Songs failed: %d", self.stats["songs_failed"])
             logger.info("=" * 70)
+            
+            # Record successful run
+            self._record_successful_run()
     
         except Exception as e:
            write_health_status("unhealthy", f"Error: {str(e)[:200]}")
@@ -2116,6 +2199,32 @@ def wait_until(target_time: datetime) -> None:
         else:
             logger.info("⏰ Next run in %.0f seconds", remaining)
             time.sleep(min(10, remaining))  # Check every 10 sec
+
+def calculate_cron_interval(cron_expression: str) -> float:
+    """Calculate shortest interval (in hours) between cron runs.
+    
+    Returns the minimum time between consecutive executions.
+    For example: '0 */6 * * *' returns 6.0 hours
+    """
+    if not CRONITER_AVAILABLE:
+        return 6.0  # Default fallback
+    
+    try:
+        from croniter import croniter
+        cron = croniter(cron_expression, datetime.now(timezone.utc))
+        
+        # Get next 10 run times to find shortest interval
+        runs = [cron.get_next(datetime) for _ in range(10)]
+        intervals = [(runs[i+1] - runs[i]).total_seconds() / 3600 
+                     for i in range(len(runs)-1)]
+        
+        min_interval = min(intervals)
+        logger.info("📊 Detected cron interval: %.1f hours", min_interval)
+        return min_interval
+        
+    except Exception as e:
+        logger.warning("Could not parse cron expression '%s': %s", cron_expression, e)
+        return 6.0  # Default fallback
 
 def run_with_schedule(dry_run: bool = False):
     """Run engine with optional cron scheduling."""

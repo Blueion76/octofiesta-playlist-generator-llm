@@ -40,6 +40,7 @@ htmlcov/
 # Project specific
 health.json
 ai_last_call.json
+octogen_last_run.json
 *.db
 *.db-journal
 *.log
