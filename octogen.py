@@ -524,6 +524,19 @@ class OctoFiestarrTrigger:
 
 class NavidromeAPI:
     """Navidrome/Subsonic API with star rating support and async operations."""
+    
+    # Version markers for detecting remixes, live versions, etc.
+    VERSION_MARKERS = [
+        'remix', 'mix', 'edit', 'version', 'acoustic', 'live', 'instrumental',
+        'extended', 'radio edit', 'demo', 'remaster', 'cover', 'vip', 'bootleg',
+        'mashup'
+    ]
+    
+    # Search and matching thresholds
+    MATCH_THRESHOLD = 0.75  # Minimum match score for library search (75%)
+    SIMILARITY_THRESHOLD = 0.85  # Minimum similarity for near-duplicate detection (85%)
+    LIBRARY_SEARCH_LIMIT = 30  # Max songs per search strategy in library search
+    SIMILAR_SEARCH_LIMIT = 50  # Max songs for similar song detection
 
     def __init__(self, url: str, username: str, password: str,
                  ratings_cache: RatingsCache, config: dict):
@@ -727,52 +740,45 @@ class NavidromeAPI:
         genre_counts = Counter(genres)
         return [g for g, _count in genre_counts.most_common(limit)]
 
+    def _strip_featured(self, text: str) -> str:
+        """Remove featured artist variations."""
+        text = re.sub(r'\s+feat\.?\s+.*$', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s+ft\.?\s+.*$', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s+featuring\s+.*$', '', text, flags=re.IGNORECASE)
+        return text.strip()
+    
+    def _normalize_for_comparison(self, text: str, preserve_version: bool = False) -> str:
+        """Normalize text for comparison."""
+        text = self._strip_featured(text)
+        if not preserve_version:
+            # Remove parentheses and brackets content
+            text = re.sub(r'\s*[\[\(].*?[\]\)]', '', text)
+        text = re.sub(r'[^\w\s]', ' ', text)
+        text = ' '.join(text.split())
+        return text.lower().strip()
+    
+    def _has_version_marker(self, text: str) -> Optional[str]:
+        """Check if text contains version markers and return the marker found."""
+        text_lower = text.lower()
+        for marker in self.VERSION_MARKERS:
+            if marker in text_lower:
+                return marker
+        return None
+    
+    def _calculate_match_score(self, search_artist: str, search_title: str,
+                              result_artist: str, result_title: str) -> float:
+        """Calculate match score (0.0-1.0) using 50% artist + 50% title."""
+        artist_ratio = difflib.SequenceMatcher(None, search_artist, result_artist).ratio()
+        title_ratio = difflib.SequenceMatcher(None, search_title, result_title).ratio()
+        return (artist_ratio * 0.5) + (title_ratio * 0.5)
+
     def search_song(self, artist: str, title: str) -> Optional[str]:
         """Search for a song with fuzzy matching and version detection."""
         
-        # Version markers to detect
-        version_markers = [
-            'remix', 'mix', 'edit', 'version', 'acoustic', 'live', 'instrumental',
-            'extended', 'radio edit', 'demo', 'remaster', 'cover', 'vip', 'bootleg',
-            'mashup'
-        ]
-        
-        def strip_featured(text: str) -> str:
-            """Remove featured artist variations."""
-            text = re.sub(r'\s+feat\.?\s+.*$', '', text, flags=re.IGNORECASE)
-            text = re.sub(r'\s+ft\.?\s+.*$', '', text, flags=re.IGNORECASE)
-            text = re.sub(r'\s+featuring\s+.*$', '', text, flags=re.IGNORECASE)
-            return text.strip()
-        
-        def normalize_for_comparison(text: str, preserve_version: bool = False) -> str:
-            """Normalize text for comparison."""
-            text = strip_featured(text)
-            if not preserve_version:
-                # Remove parentheses and brackets content
-                text = re.sub(r'\s*[\[\(].*?[\]\)]', '', text)
-            text = re.sub(r'[^\w\s]', ' ', text)
-            text = ' '.join(text.split())
-            return text.lower().strip()
-        
-        def has_version_marker(text: str) -> Optional[str]:
-            """Check if text contains version markers."""
-            text_lower = text.lower()
-            for marker in version_markers:
-                if marker in text_lower:
-                    return marker
-            return None
-        
-        def calculate_match_score(search_artist: str, search_title: str,
-                                result_artist: str, result_title: str) -> float:
-            """Calculate match score (0.0-1.0) using 50% artist + 50% title."""
-            artist_ratio = difflib.SequenceMatcher(None, search_artist, result_artist).ratio()
-            title_ratio = difflib.SequenceMatcher(None, search_title, result_title).ratio()
-            return (artist_ratio * 0.5) + (title_ratio * 0.5)
-        
         # Normalize search terms
-        search_artist_norm = normalize_for_comparison(artist, preserve_version=False)
-        search_title_norm = normalize_for_comparison(title, preserve_version=False)
-        search_version = has_version_marker(title)
+        search_artist_norm = self._normalize_for_comparison(artist, preserve_version=False)
+        search_title_norm = self._normalize_for_comparison(title, preserve_version=False)
+        search_version = self._has_version_marker(title)
         
         # Try multiple search strategies
         search_queries = [
@@ -783,7 +789,7 @@ class NavidromeAPI:
         
         all_songs = []
         for query in search_queries:
-            response = self._request("search3", {"query": query, "songCount": 30})
+            response = self._request("search3", {"query": query, "songCount": self.LIBRARY_SEARCH_LIMIT})
             if response:
                 songs = response.get("searchResult3", {}).get("song", [])
                 all_songs.extend(songs)
@@ -809,13 +815,13 @@ class NavidromeAPI:
             result_title = song.get("title", "")
             
             # Normalize result
-            result_artist_norm = normalize_for_comparison(result_artist, preserve_version=False)
-            result_title_norm = normalize_for_comparison(result_title, preserve_version=False)
-            result_version = has_version_marker(result_title)
+            result_artist_norm = self._normalize_for_comparison(result_artist, preserve_version=False)
+            result_title_norm = self._normalize_for_comparison(result_title, preserve_version=False)
+            result_version = self._has_version_marker(result_title)
             
             # Calculate match score
-            score = calculate_match_score(search_artist_norm, search_title_norm,
-                                        result_artist_norm, result_title_norm)
+            score = self._calculate_match_score(search_artist_norm, search_title_norm,
+                                              result_artist_norm, result_title_norm)
             
             # Check if this is a better match
             if score > best_score:
@@ -827,8 +833,8 @@ class NavidromeAPI:
         
         song_id, match_artist, match_title, match_version = best_match
         
-        # Decision logic: match threshold is 0.75 (75%)
-        if best_score >= 0.75:
+        # Decision logic based on MATCH_THRESHOLD
+        if best_score >= self.MATCH_THRESHOLD:
             # Check version compatibility
             if search_version != match_version:
                 # Different versions - return None to trigger download
@@ -848,39 +854,8 @@ class NavidromeAPI:
     def check_for_similar_song(self, artist: str, title: str) -> Optional[str]:
         """Check for similar songs to prevent near-duplicates before downloading."""
         
-        # Version markers to detect
-        version_markers = [
-            'remix', 'mix', 'edit', 'version', 'acoustic', 'live', 'instrumental',
-            'extended', 'radio edit', 'demo', 'remaster', 'cover', 'vip', 'bootleg',
-            'mashup'
-        ]
-        
-        def strip_featured(text: str) -> str:
-            """Remove featured artist variations."""
-            text = re.sub(r'\s+feat\.?\s+.*$', '', text, flags=re.IGNORECASE)
-            text = re.sub(r'\s+ft\.?\s+.*$', '', text, flags=re.IGNORECASE)
-            text = re.sub(r'\s+featuring\s+.*$', '', text, flags=re.IGNORECASE)
-            return text.strip()
-        
-        def normalize_for_comparison(text: str) -> str:
-            """Normalize text for comparison."""
-            text = strip_featured(text)
-            # Remove parentheses and brackets content
-            text = re.sub(r'\s*[\[\(].*?[\]\)]', '', text)
-            text = re.sub(r'[^\w\s]', ' ', text)
-            text = ' '.join(text.split())
-            return text.lower().strip()
-        
-        def has_version_marker(text: str) -> bool:
-            """Check if text contains version markers."""
-            text_lower = text.lower()
-            for marker in version_markers:
-                if marker in text_lower:
-                    return True
-            return False
-        
         # Search by artist name
-        response = self._request("search3", {"query": f'"{artist}"', "songCount": 50})
+        response = self._request("search3", {"query": f'"{artist}"', "songCount": self.SIMILAR_SEARCH_LIMIT})
         
         if not response:
             return None
@@ -891,9 +866,9 @@ class NavidromeAPI:
             return None
         
         # Normalize search terms
-        search_artist_norm = normalize_for_comparison(artist)
-        search_title_norm = normalize_for_comparison(title)
-        search_has_version = has_version_marker(title)
+        search_artist_norm = self._normalize_for_comparison(artist)
+        search_title_norm = self._normalize_for_comparison(title)
+        search_has_version = self._has_version_marker(title) is not None
         
         # Check each result for similarity
         for song in songs:
@@ -901,22 +876,22 @@ class NavidromeAPI:
             result_title = song.get("title", "")
             
             # Check for version markers
-            result_has_version = has_version_marker(result_title)
+            result_has_version = self._has_version_marker(result_title) is not None
             
             # Skip if version markers differ (don't match remix to original)
             if search_has_version != result_has_version:
                 continue
             
             # Normalize result
-            result_artist_norm = normalize_for_comparison(result_artist)
-            result_title_norm = normalize_for_comparison(result_title)
+            result_artist_norm = self._normalize_for_comparison(result_artist)
+            result_title_norm = self._normalize_for_comparison(result_title)
             
             # Calculate match ratios
             artist_ratio = difflib.SequenceMatcher(None, search_artist_norm, result_artist_norm).ratio()
             title_ratio = difflib.SequenceMatcher(None, search_title_norm, result_title_norm).ratio()
             
             # If both are high similarity, consider it a near-duplicate
-            if artist_ratio >= 0.85 and title_ratio >= 0.85:
+            if artist_ratio >= self.SIMILARITY_THRESHOLD and title_ratio >= self.SIMILARITY_THRESHOLD:
                 logger.warning("Similar song found in library: %s - %s (artist: %.0f%%, title: %.0f%%)",
                              result_artist, result_title, artist_ratio * 100, title_ratio * 100)
                 return song["id"]
