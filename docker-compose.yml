@@ -23,7 +23,9 @@ services:
       # ============================================================================
       # REQUIRED - AI Provider
       # ============================================================================
-      AI_API_KEY: ${AI_API_KEY:-${GEMINI_API_KEY}}
+      # Note: For backward compatibility, you can use GEMINI_API_KEY in your .env
+      # file and set AI_API_KEY=${GEMINI_API_KEY} there, or just use AI_API_KEY
+      AI_API_KEY: ${AI_API_KEY}
 
       # ============================================================================
       # OPTIONAL - AI Configuration
