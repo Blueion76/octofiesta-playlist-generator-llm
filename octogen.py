@@ -1801,10 +1801,6 @@ class OctoGenEngine:
                             self.create_playlist(playlist_name, songs, max_songs=100)
 
             
-            logger.info("DEBUG: About to check external services (lastfm=%s, listenbrainz=%s)", 
-                    self.lastfm is not None, self.listenbrainz is not None)
-
-            
             # External services (run regardless of starred songs)
             if self.lastfm:
                 logger.info("=" * 70)
