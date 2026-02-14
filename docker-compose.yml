@@ -8,22 +8,94 @@ services:
     volumes:
       - octogen-data:/data
     environment:
-      # Required
+      # ============================================================================
+      # REQUIRED - Navidrome Server
+      # ============================================================================
       NAVIDROME_URL: http://navidrome:4533
       NAVIDROME_USER: admin
       NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
+
+      # ============================================================================
+      # REQUIRED - Octo-Fiesta Server (for downloads)
+      # ============================================================================
       OCTOFIESTA_URL: http://octofiesta:5274
-      AI_API_KEY: ${GEMINI_API_KEY}
 
-      # Scheduling (NEW!)
-      SCHEDULE_CRON: "0 6 * * *"  # Daily at 6 AM
-      TZ: America/Chicago
+      # ============================================================================
+      # REQUIRED - AI Provider
+      # ============================================================================
+      # Note: For backward compatibility, you can use GEMINI_API_KEY in your .env
+      # file and set AI_API_KEY=${GEMINI_API_KEY} there, or just use AI_API_KEY
+      AI_API_KEY: ${AI_API_KEY}
 
-      # Optional
-      AI_MODEL: gemini-2.5-flash
-      AI_BASE_URL: https://generativelanguage.googleapis.com/v1beta/openai/
-      AI_BACKEND: gemini
-      LOG_LEVEL: INFO
+      # ============================================================================
+      # OPTIONAL - AI Configuration
+      # ============================================================================
+      # AI Model - Default is Gemini 2.5 Flash (recommended)
+      AI_MODEL: ${AI_MODEL:-gemini-2.5-flash}
+      
+      # AI Backend - Options: gemini, openai
+      AI_BACKEND: ${AI_BACKEND:-gemini}
+      
+      # Custom API endpoint URL (only for OpenAI-compatible backends)
+      AI_BASE_URL: ${AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
+      
+      # Maximum songs to include in AI context (memory optimization)
+      AI_MAX_CONTEXT_SONGS: ${AI_MAX_CONTEXT_SONGS:-500}
+      
+      # Maximum output tokens for AI response
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-65535}
+
+      # ============================================================================
+      # OPTIONAL - Scheduling Configuration
+      # ============================================================================
+      # Cron expression for automatic scheduling (e.g., "0 6 * * *" for daily at 6 AM)
+      # Leave unset or use "manual" to disable scheduling
+      SCHEDULE_CRON: ${SCHEDULE_CRON:-0 6 * * *}
+      
+      # Timezone for scheduled runs (IANA timezone name)
+      TZ: ${TZ:-America/Chicago}
+
+      # ============================================================================
+      # OPTIONAL - Last.fm Integration
+      # ============================================================================
+      LASTFM_ENABLED: ${LASTFM_ENABLED:-false}
+      LASTFM_API_KEY: ${LASTFM_API_KEY:-}
+      LASTFM_USERNAME: ${LASTFM_USERNAME:-}
+
+      # ============================================================================
+      # OPTIONAL - ListenBrainz Integration
+      # ============================================================================
+      LISTENBRAINZ_ENABLED: ${LISTENBRAINZ_ENABLED:-false}
+      LISTENBRAINZ_USERNAME: ${LISTENBRAINZ_USERNAME:-}
+      LISTENBRAINZ_TOKEN: ${LISTENBRAINZ_TOKEN:-}
+
+      # ============================================================================
+      # OPTIONAL - Performance Tuning
+      # ============================================================================
+      # Album batch size for library scanning
+      PERF_ALBUM_BATCH_SIZE: ${PERF_ALBUM_BATCH_SIZE:-500}
+      
+      # Maximum albums to scan (prevents timeouts on huge libraries)
+      PERF_MAX_ALBUMS_SCAN: ${PERF_MAX_ALBUMS_SCAN:-10000}
+      
+      # Scan timeout in seconds
+      PERF_SCAN_TIMEOUT: ${PERF_SCAN_TIMEOUT:-60}
+      
+      # Delay between downloads (seconds) - prevents overwhelming Octo-Fiesta
+      PERF_DOWNLOAD_DELAY: ${PERF_DOWNLOAD_DELAY:-6}
+      
+      # Delay after Navidrome scan completes (seconds)
+      PERF_POST_SCAN_DELAY: ${PERF_POST_SCAN_DELAY:-2}
+
+      # ============================================================================
+      # OPTIONAL - System Configuration
+      # ============================================================================
+      # Log level: DEBUG, INFO, WARNING, ERROR
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # Data directory inside container - must match volume mount path
+      # Change only if you also modify the volume mount
+      OCTOGEN_DATA_DIR: ${OCTOGEN_DATA_DIR:-/data}
 
 volumes:
   octogen-data:
