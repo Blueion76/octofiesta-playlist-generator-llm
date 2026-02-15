@@ -1347,7 +1347,7 @@ CRITICAL RULES:
         Returns:
             Tuple of (playlists_dict, error_reason)
             - playlists_dict: Dictionary of playlist names to song lists
-            - error_reason: None if successful, or error code string like 'rate_limit', 'quota_exceeded', 'invalid_response', 'no_cache'
+            - error_reason: None if successful, or error code string like 'rate_limit', 'quota_exceeded', 'invalid_response', 'api_error'
         """
 
         #Check if library changed and invalidate cache if needed
@@ -1515,7 +1515,7 @@ class ServiceTracker:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             **metadata
         }
-        logger.debug(f"Service tracker: Recorded {name} - success={success}, metadata={metadata}")
+        logger.debug("Service tracker: Recorded %s - success=%s, metadata=%s", name, success, metadata)
     
     def get_summary(self) -> Dict:
         """Return summary of all service outcomes."""
@@ -2426,7 +2426,7 @@ CRITICAL RULES:
                         reason=ai_error,
                         api_calls=self.ai.call_count
                     )
-                    logger.warning(f"AI service failed: {ai_error}")
+                    logger.warning("AI service failed: %s", ai_error)
                 else:
                     playlist_count = len(all_playlists)
                     song_count = sum(len(songs) for songs in all_playlists.values())
@@ -2437,7 +2437,7 @@ CRITICAL RULES:
                         songs=song_count,
                         api_calls=self.ai.call_count
                     )
-                    logger.info(f"AI service succeeded: {playlist_count} playlists, {song_count} songs")
+                    logger.info("AI service succeeded: %d playlists, %d songs", playlist_count, song_count)
             elif not self.ai:
                 logger.info("=" * 70)
                 logger.info("AI not configured - using alternative music sources only")
@@ -2514,7 +2514,7 @@ CRITICAL RULES:
                             success=True,
                             playlists=audiomuse_playlists
                         )
-                        logger.info(f"AudioMuse-AI service succeeded: {audiomuse_playlists} playlists")
+                        logger.info("AudioMuse-AI service succeeded: %d playlists", audiomuse_playlists)
                         
                         # Create Discovery from AI response (LLM-only for new discoveries)
                         if "Discovery" in all_playlists:
@@ -2549,14 +2549,14 @@ CRITICAL RULES:
                         playlists=playlists_created,
                         songs=len(recs) if recs else 0
                     )
-                    logger.info(f"Last.fm service succeeded: {playlists_created} playlists, {len(recs) if recs else 0} songs")
+                    logger.info("Last.fm service succeeded: %d playlists, %d songs", playlists_created, len(recs) if recs else 0)
                 except Exception as e:
                     self.service_tracker.record_service(
                         "lastfm",
                         success=False,
                         reason=str(e)[:100]
                     )
-                    logger.warning(f"Last.fm service failed: {e}")
+                    logger.warning("Last.fm service failed: %s", e)
     
             if self.listenbrainz:
                 logger.info("Creating ListenBrainz 'Created For You' playlists...")
@@ -2642,14 +2642,14 @@ CRITICAL RULES:
                         success=True,
                         playlists=playlists_created
                     )
-                    logger.info(f"ListenBrainz service succeeded: {playlists_created} playlists")
+                    logger.info("ListenBrainz service succeeded: %d playlists", playlists_created)
                 except Exception as e:
                     self.service_tracker.record_service(
                         "listenbrainz",
                         success=False,
                         reason=str(e)[:100]
                     )
-                    logger.warning(f"ListenBrainz service failed: {e}")
+                    logger.warning("ListenBrainz service failed: %s", e)
     
             # Service Execution Summary
             logger.info("=" * 70)
