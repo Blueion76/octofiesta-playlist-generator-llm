@@ -675,6 +675,7 @@ class OctoGenEngine:
         top_genres: List[str],
         favorited_songs: List[Dict],
         low_rated_songs: Optional[List[Dict]] = None
+        playlist_name: str = None
     ) -> List[Dict]:
         """
         Generate a daily mix using both AudioMuse-AI and LLM
@@ -713,7 +714,8 @@ class OctoGenEngine:
                 songs.append({"artist": song.get('artist', ''), "title": song.get('title', '')})
             
             audiomuse_actual_count = len(songs)
-            logger.info(f"📻 Daily Mix {mix_number}: Got {audiomuse_actual_count} songs from AudioMuse-AI")
+            label = f"Daily Mix {mix_number}" if mix_number in [1,2,3,4,5,6] else playlist_name
+            logger.info(f"📻 {label}: Got {audiomuse_actual_count} songs from AudioMuse-AI")
             if audiomuse_actual_count < audiomuse_songs_count:
                 logger.debug(f"AudioMuse returned fewer songs than requested ({audiomuse_actual_count}/{audiomuse_songs_count})")
         
@@ -741,8 +743,8 @@ class OctoGenEngine:
         
         songs.extend(llm_songs)
         
-        logger.info(f"🤖 Daily Mix {mix_number}: Got {len(llm_songs)} songs from LLM")
-        logger.info(f"🎵 Daily Mix {mix_number}: Total {len(songs)} songs (AudioMuse: {audiomuse_actual_count}, LLM: {len(llm_songs)})")
+        logger.info(f"🤖 {label}: Got {len(llm_songs)} songs from LLM")
+        logger.info(f"🎵 {label}: Total {len(songs)} songs (AudioMuse: {audiomuse_actual_count}, LLM: {len(llm_songs)})")
         
         return songs[:30]  # Ensure we return exactly 30 songs
 
@@ -1006,34 +1008,36 @@ CRITICAL RULES:
                         
                         # Define all hybrid playlist configurations (everything except Discovery)
                         hybrid_playlist_configs = [
-                            # Daily Mixes
+                            # Daily Mixes (num 1-6)
                             {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else DEFAULT_DAILY_MIX_GENRES[0], "characteristics": "energetic", "num": 1},
                             {"name": "Daily Mix 2", "genre": top_genres[1] if len(top_genres) > 1 else DEFAULT_DAILY_MIX_GENRES[1], "characteristics": "catchy upbeat", "num": 2},
                             {"name": "Daily Mix 3", "genre": top_genres[2] if len(top_genres) > 2 else DEFAULT_DAILY_MIX_GENRES[2], "characteristics": "danceable rhythmic", "num": 3},
                             {"name": "Daily Mix 4", "genre": top_genres[3] if len(top_genres) > 3 else DEFAULT_DAILY_MIX_GENRES[3], "characteristics": "rhythmic bass-heavy", "num": 4},
                             {"name": "Daily Mix 5", "genre": top_genres[4] if len(top_genres) > 4 else DEFAULT_DAILY_MIX_GENRES[4], "characteristics": "alternative atmospheric", "num": 5},
                             {"name": "Daily Mix 6", "genre": top_genres[5] if len(top_genres) > 5 else DEFAULT_DAILY_MIX_GENRES[5], "characteristics": "smooth melodic", "num": 6},
-                            # Mood/Activity playlists
-                            {"name": "Chill Vibes", "genre": "ambient", "characteristics": "relaxing calm peaceful", "num": 8},
-                            {"name": "Workout Energy", "genre": "high-energy", "characteristics": "upbeat motivating intense", "num": 9},
-                            {"name": "Focus Flow", "genre": "instrumental", "characteristics": "ambient atmospheric concentration", "num": 10},
-                            {"name": "Drive Time", "genre": "upbeat", "characteristics": "driving energetic feel-good", "num": 11}
+                            # Mood/Activity playlists (no num)
+                            {"name": "Chill Vibes", "genre": "ambient", "characteristics": "relaxing calm peaceful", "num": None},
+                            {"name": "Workout Energy", "genre": "high-energy", "characteristics": "upbeat motivating intense", "num": None},
+                            {"name": "Focus Flow", "genre": "instrumental", "characteristics": "ambient atmospheric concentration", "num": None},
+                            {"name": "Drive Time", "genre": "upbeat", "characteristics": "driving energetic feel-good", "num": None}
                         ]
                         
                         # Generate and create hybrid playlists
                         for mix_config in hybrid_playlist_configs:
+                            playlist_name = mix_config["name"]
+                            mix_number = mix_config.get("num")
                             hybrid_songs = self._generate_hybrid_daily_mix(
-                                mix_number=mix_config["num"],
+                                mix_number=mix_number,
                                 genre_focus=mix_config["genre"],
                                 characteristics=mix_config["characteristics"],
                                 top_artists=top_artists,
                                 top_genres=top_genres,
                                 favorited_songs=favorited_songs,
-                                low_rated_songs=low_rated_songs
+                                low_rated_songs=low_rated_songs,
+                                playlist_name=playlist_name  # NEW
                             )
-                            
                             if hybrid_songs:
-                                self.create_playlist(mix_config["name"], hybrid_songs, max_songs=30)
+                                self.create_playlist(playlist_name, hybrid_songs, max_songs=30)
                         
                         # Track AudioMuse service
                         audiomuse_playlists = self.stats["playlists_created"] - playlists_before_audiomuse
