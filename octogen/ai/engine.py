@@ -435,10 +435,7 @@ Apply this context when selecting NEW songs to match the current time of day.
 10. "Focus Flow" (30 songs): 25 library + 5 new ambient/instrumental
 11. "Drive Time" (30 songs): 25 library + 5 new upbeat
 {time_guidance}
-Return ONLY valid JSON:
-- Commas REQUIRED between ALL object properties and array elements
-- NO trailing commas after last element
-- ALL brackets must match and close properly
+Respond ONLY with a valid JSON array of objects, each with "artist" and "title" fields, using double quotes.
 
 {{
   "Discovery": [
