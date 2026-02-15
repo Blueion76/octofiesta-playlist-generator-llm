@@ -19,4 +19,5 @@ setup_logging()
 from octogen.main import main
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Call main() and let it handle exit codes
+    main()

@@ -1403,7 +1403,7 @@ def run_with_schedule(dry_run: bool = False):
         
         # Check cooldown before running in manual mode
         if not engine._check_run_cooldown():
-            write_health_status(BASE_DIR, BASE_DIR, "skipped", "Cooldown active - skipping run")
+            write_health_status(BASE_DIR, "skipped", "Cooldown active - skipping run")
             logger.info("💤 Sleeping %ds before exit to prevent rapid restarts", COOLDOWN_EXIT_DELAY_SECONDS)
             time.sleep(COOLDOWN_EXIT_DELAY_SECONDS)
             sys.exit(0)  # Clean exit - not an error
@@ -1434,7 +1434,7 @@ def run_with_schedule(dry_run: bool = False):
             # Calculate next run time
             next_run = calculate_next_run(schedule_cron)
             logger.info("📅 Next scheduled run: %s", next_run.strftime("%Y-%m-%d %H:%M:%S"))
-            write_health_status(BASE_DIR, BASE_DIR, "scheduled", f"Waiting for next run at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+            write_health_status(BASE_DIR, "scheduled", f"Waiting for next run at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
 
             # Wait until next run
             wait_until(next_run)
@@ -1450,7 +1450,7 @@ def run_with_schedule(dry_run: bool = False):
             # Check cooldown before running in scheduled mode
             if not engine._check_run_cooldown():
                 logger.info("⏭️ Cooldown active, waiting for next scheduled run")
-                write_health_status(BASE_DIR, BASE_DIR, "scheduled", "Cooldown active - waiting for next schedule")
+                write_health_status(BASE_DIR, "scheduled", "Cooldown active - waiting for next schedule")
                 continue  # Continue to scheduler loop, don't exit
             
             engine.run()
