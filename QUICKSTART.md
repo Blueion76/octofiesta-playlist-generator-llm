@@ -258,7 +258,7 @@ Shows what would happen without:
 
 ## ⏰ Built-in Scheduling
 
-OctoGen now has **built-in cron scheduling** - no external cron daemon needed!
+OctoGen now has **built-in cron scheduling** - no external cron daemon needed
 
 ### How It Works
 1. Set `SCHEDULE_CRON` environment variable
