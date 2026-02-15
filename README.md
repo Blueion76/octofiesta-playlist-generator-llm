@@ -1,7 +1,5 @@
 # 🎵 OctoGen - AI-Powered Music Discovery for Navidrome
 
-[![Docker Build](https://github.com/Blueion76/Octogen/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Blueion76/Octogen/actions/workflows/docker-publish.yml)
-[![Docker Hub](https://img.shields.io/docker/v/blueion76/octogen?sort=semver&label=docker%20hub)](https://hub.docker.com/r/blueion76/octogen)
 [![Docker Pulls](https://img.shields.io/docker/pulls/blueion76/octogen?logo=docker)](https://hub.docker.com/r/blueion76/octogen)
 
 **OctoGen** automatically generates personalized music playlists for your Navidrome server using AI. It creates 11 curated playlists with over 350 songs, seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
@@ -68,6 +66,7 @@ AUDIOMUSE_URL=http://localhost:8000
 - **Workout Energy**: High-energy music (25 AudioMuse + 5 LLM)
 - **Focus Flow**: Ambient/instrumental (25 AudioMuse + 5 LLM)
 - **Drive Time**: Upbeat driving music (25 AudioMuse + 5 LLM)
+- **Time-of-Day Playlist**: Depends on time of day (25 AudioMuse + 5 LLM)
 
 **LLM-only playlists** (always):
 - **Discovery**: New discoveries (50 LLM songs)
@@ -85,7 +84,7 @@ See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 - **Daily cache**: Efficient library scanning
 - **Async operations**: Fast, parallel processing
 - **Last.fm & ListenBrainz**: Optional integration
-- **Built-in scheduling**: No external cron needed! 🕐
+- **Built-in scheduling**: No external cron needed 🕐
 
 ### 📊 Monitoring & Observability
 - **Web UI dashboard**: Real-time service health monitoring with auto-refresh
@@ -173,17 +172,8 @@ OctoGen uses automated CI/CD to build and publish Docker images:
 
 - **`dev`** - Automatically built from latest main branch (bleeding edge, may be unstable)
 - **`latest`** - Manually published stable releases (recommended for production)
-- **`vX.Y.Z`** - Semantic version tags for specific releases
 - **`sha-XXXXXXX`** - Build from specific commit (for debugging)
 
-### Automated Builds
-
-Docker images are automatically built and pushed to Docker Hub when:
-- Code is pushed to `main` branch (creates `dev` and `sha-XXXXXXX` tags)
-- A release tag (`v*.*.*`) is created (creates version tags)
-- Manual workflow dispatch is triggered
-
-The CI/CD pipeline builds multi-platform images (linux/amd64 and linux/arm64) using GitHub Actions.
 
 ### Using Development Builds
 
@@ -198,16 +188,6 @@ For production use (recommended):
 ```bash
 docker pull blueion76/octogen:latest
 ```
-
-### Publishing a Stable Release
-
-Maintainers can publish to `latest` tag:
-1. Go to **Actions** → **Build and Push Docker Image**
-2. Click **"Run workflow"**
-3. Check **"Publish as latest tag (stable release)"**
-4. Click **"Run workflow"**
-
----
 
 ## 🐳 Docker Compose (Recommended)
 
@@ -832,30 +812,7 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 
 ## 🤝 Contributing
 
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### For Maintainers: Docker Hub Setup
-
-To enable automated Docker image publishing, repository maintainers need to configure these secrets in GitHub:
-
-1. Go to **Settings** → **Secrets and variables** → **Actions**
-2. Add the following repository secrets:
-   - `DOCKERHUB_USERNAME` - Your Docker Hub username
-   - `DOCKERHUB_TOKEN` - Docker Hub access token (create at [hub.docker.com/settings/security](https://hub.docker.com/settings/security))
-
-Once configured, the workflow will automatically build and push images on every push to main and on releases.
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Contributions welcome! Just create a pull request.
 
 ---
 
