@@ -92,6 +92,7 @@ logger = logging.getLogger(__name__)
 # Constants
 LOW_RATING_MIN = 1
 LOW_RATING_MAX = 2
+COOLDOWN_EXIT_DELAY_SECONDS = 60  # Sleep duration before exit in manual mode to prevent rapid restarts
 
 # Default genres for Daily Mixes when library genres are insufficient
 DEFAULT_DAILY_MIX_GENRES = ["rock", "pop", "electronic", "hip-hop", "indie", "jazz"]
@@ -1826,14 +1827,14 @@ class OctoGenEngine:
                 hours_since_last = (now - last_run).total_seconds() / 3600
                 
                 if hours_since_last < cooldown_hours:
-                    logger.warning("=" * 70)
-                    logger.warning("⏭️  OctoGen ran %.1f hours ago (cooldown: %.1f hours)", 
+                    logger.info("=" * 70)
+                    logger.info("⏭️  OctoGen ran %.1f hours ago (cooldown: %.1f hours)", 
                                  hours_since_last, cooldown_hours)
-                    logger.warning("⏭️  Skipping to prevent duplicate run")
-                    logger.warning("⏭️  Last run: %s", last_run.strftime("%Y-%m-%d %H:%M:%S"))
-                    logger.warning("⏭️  Next run allowed after: %s", 
+                    logger.info("⏭️  Skipping to prevent duplicate run")
+                    logger.info("⏭️  Last run: %s", last_run.strftime("%Y-%m-%d %H:%M:%S"))
+                    logger.info("⏭️  Next run allowed after: %s", 
                                  (last_run + timedelta(hours=cooldown_hours)).strftime("%Y-%m-%d %H:%M:%S"))
-                    logger.warning("=" * 70)
+                    logger.info("=" * 70)
                     return False
                 
                 logger.info("✅ Cooldown passed (%.1f hours since last run)", hours_since_last)
@@ -2254,11 +2255,6 @@ CRITICAL RULES:
         logger.info("=" * 70)
         logger.info("OCTOGEN - Starting: %s", start_time.strftime("%Y-%m-%d %H:%M:%S"))
         logger.info("=" * 70)
-
-        # Check cooldown before proceeding
-        if not self._check_run_cooldown():
-            write_health_status("skipped", "Cooldown active - skipping run to prevent duplicate")
-            return  # Exit early
     
         try:
 
@@ -2569,6 +2565,14 @@ def run_with_schedule(dry_run: bool = False):
     if not schedule_cron or schedule_cron.lower() in ("manual", "false", "no", "off", "disabled"):
         logger.info("🔧 Running in manual mode (no schedule)")
         engine = OctoGenEngine(dry_run=dry_run)
+        
+        # Check cooldown before running in manual mode
+        if not engine._check_run_cooldown():
+            write_health_status("skipped", "Cooldown active - skipping run")
+            logger.info("💤 Sleeping %ds before exit to prevent rapid restarts", COOLDOWN_EXIT_DELAY_SECONDS)
+            time.sleep(COOLDOWN_EXIT_DELAY_SECONDS)
+            sys.exit(0)  # Clean exit - not an error
+        
         engine.run()
         return
 
@@ -2607,6 +2611,13 @@ def run_with_schedule(dry_run: bool = False):
             logger.info("═" * 70)
 
             engine = OctoGenEngine(dry_run=dry_run)
+            
+            # Check cooldown before running in scheduled mode
+            if not engine._check_run_cooldown():
+                logger.info("⏭️ Cooldown active, waiting for next scheduled run")
+                write_health_status("scheduled", "Cooldown active - waiting for next schedule")
+                continue  # Continue to scheduler loop, don't exit
+            
             engine.run()
 
             logger.info("✅ Scheduled run #%d completed successfully", run_count)
