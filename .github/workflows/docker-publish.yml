@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '**.py'
-      - 'Dockerfile'
-      - 'requirements.txt'
-      - '.github/workflows/docker-publish.yml'
     tags:
       - 'v*'
   release:
