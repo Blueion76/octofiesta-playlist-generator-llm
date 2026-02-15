@@ -349,16 +349,9 @@ def should_generate_regular_playlists(data_dir: Optional[Path] = None) -> Tuple[
     if data_dir is None:
         data_dir = Path(os.getenv("OCTOGEN_DATA_DIR", Path.cwd()))
     
-    # Check if we're in scheduled mode
-    if not is_scheduled_mode():
-        return True, "Running in manual mode - proceeding with generation"
-    
-    # In scheduled mode, check if we should run
-    # The scheduler already handles this logic, so if we're here, we should run
-    # But we can still check for recent generation to prevent duplicates
-    
     tracker_file = data_dir / "octogen_regular_last.json"
     
+    # First check for recent generation to prevent duplicates (applies to both modes)
     if tracker_file.exists():
         try:
             with open(tracker_file, 'r') as f:
@@ -377,6 +370,11 @@ def should_generate_regular_playlists(data_dir: Optional[Path] = None) -> Tuple[
         except Exception as e:
             logger.warning(f"Error reading regular playlist tracker: {e}")
     
+    # Check if we're in scheduled mode
+    if not is_scheduled_mode():
+        return True, "Running in manual mode - proceeding with generation"
+    
+    # In scheduled mode, we should generate (scheduler already handles timing)
     return True, "At scheduled generation time for regular playlists"
 
 
