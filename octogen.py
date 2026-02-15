@@ -2,6 +2,7 @@
 """OctoGen - AI-Powered Music Discovery Engine for Navidrome
 
 Docker Edition with Environment Variable Configuration + Built-in Scheduling
+Refactored with modular architecture for maintainability.
 
 Features:
 - AI recommendations (Gemini, OpenAI, Groq, Ollama, etc.)
@@ -12,6 +13,9 @@ Features:
 - Async operations for speed
 - Zero config files - pure environment variables
 - Built-in cron scheduling
+- Prometheus metrics (optional)
+- Circuit breaker for resilience
+- Web UI dashboard (optional)
 """
 
 import sys
@@ -37,6 +41,24 @@ from typing import List, Dict, Tuple, Optional, Set
 from collections import Counter
 from urllib.parse import urlencode
 
+# Import from refactored modules
+try:
+    from octogen.utils.auth import subsonic_auth_params
+    from octogen.utils.retry import retry_with_backoff
+    from octogen.storage.cache import RatingsCache, LOW_RATING_MIN, LOW_RATING_MAX
+    from octogen.api.navidrome import NavidromeAPI, OctoFiestaTrigger
+    from octogen.api.lastfm import LastFMAPI
+    from octogen.api.listenbrainz import ListenBrainzAPI
+    from octogen.api.audiomuse import AudioMuseClient
+    from octogen.ai.engine import AIRecommendationEngine
+    from octogen.config import load_config_from_env
+    from octogen.monitoring.metrics import setup_metrics, record_playlist_created, record_song_downloaded, record_run_complete
+    MODULES_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Could not import refactored modules: {e}", file=sys.stderr)
+    print("Falling back to inline implementations", file=sys.stderr)
+    MODULES_AVAILABLE = False
+
 # Try to import croniter for scheduling support
 try:
     from croniter import croniter
@@ -47,8 +69,9 @@ except ImportError:
 try:
     from openai import OpenAI
 except ImportError:
-    print("ERROR: pip install openai requests aiohttp croniter", file=sys.stderr)
-    sys.exit(1)
+    if not MODULES_AVAILABLE:
+        print("ERROR: pip install openai requests aiohttp croniter", file=sys.stderr)
+        sys.exit(1)
 
 # Optional: Native Gemini SDK
 try:
@@ -2869,6 +2892,36 @@ def run_with_schedule(dry_run: bool = False):
 def main() -> None:
     """Main entry point."""
     import argparse
+    
+    # Initialize metrics if available and enabled
+    if MODULES_AVAILABLE:
+        try:
+            metrics_enabled = os.getenv("METRICS_ENABLED", "true").lower() == "true"
+            metrics_port = int(os.getenv("METRICS_PORT", "9090"))
+            if metrics_enabled:
+                setup_metrics(enabled=True, port=metrics_port)
+                logger.info(f"Prometheus metrics enabled on port {metrics_port}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize metrics: {e}")
+    
+    # Start web UI if enabled
+    web_ui_enabled = os.getenv("WEB_UI_ENABLED", "false").lower() == "true"
+    if web_ui_enabled and MODULES_AVAILABLE:
+        try:
+            from octogen.web.app import create_app
+            import threading
+            
+            web_port = int(os.getenv("WEB_UI_PORT", "5000"))
+            app = create_app()
+            
+            def run_web_ui():
+                app.run(host='0.0.0.0', port=web_port, debug=False)
+            
+            web_thread = threading.Thread(target=run_web_ui, daemon=True)
+            web_thread.start()
+            logger.info(f"Web UI started on port {web_port}")
+        except Exception as e:
+            logger.warning(f"Failed to start web UI: {e}")
 
     print_banner()
 

@@ -39,6 +39,8 @@ WORKDIR /app
 
 # Copy application code
 COPY *.py .
+COPY octogen/ octogen/
+COPY config/ /config/
 
 # Create data directory with proper permissions
 RUN mkdir -p /data && chmod 755 /data
@@ -50,7 +52,11 @@ ENV OCTOGEN_DATA_DIR=/data \
     PYTHONDONTWRITEBYTECODE=1 \
     AI_BACKEND=gemini \
     AI_MODEL=gemini-2.5-flash \
-    AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+    AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/ \
+    METRICS_ENABLED=true \
+    METRICS_PORT=9090 \
+    WEB_UI_ENABLED=false \
+    WEB_UI_PORT=5000
 
 # Health check - verifies log file exists and was updated recently
 HEALTHCHECK --interval=5m --timeout=30s --start-period=30s --retries=3 \
@@ -61,8 +67,13 @@ HEALTHCHECK --interval=5m --timeout=30s --start-period=30s --retries=3 \
   || exit 1
 
 
-# Expose data volume
-VOLUME ["/data"]
+# Expose ports
+EXPOSE 9090 5000
+# Port 9090: Prometheus metrics
+# Port 5000: Web UI dashboard
+
+# Expose data and config volumes
+VOLUME ["/data", "/config"]
 
 # Run as non-root user for security (optional - uncomment if desired)
 # RUN useradd -m -u 1000 octogen && \
