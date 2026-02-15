@@ -93,6 +93,9 @@ logger = logging.getLogger(__name__)
 LOW_RATING_MIN = 1
 LOW_RATING_MAX = 2
 
+# Default genres for Daily Mixes when library genres are insufficient
+DEFAULT_DAILY_MIX_GENRES = ["rock", "pop", "electronic", "hip-hop", "indie", "jazz"]
+
 # ============================================================================
 # BANNER
 # ============================================================================
@@ -1230,7 +1233,7 @@ Use songs from this library for "library songs" and recommend NEW similar songs.
 
         return f"""Generate exactly 11 playlists (Variety Seed: {variety_seed}):
 
-1. "Discovery Weekly" (50 songs): 45 new discoveries + 5 library
+1. "Discovery" (50 songs): 45 new discoveries + 5 library
 {chr(10).join(genre_instructions)}
 8. "Chill Vibes" (30 songs): 25 library + 5 new relaxing
 9. "Workout Energy" (30 songs): 25 library + 5 new high-energy
@@ -1239,7 +1242,7 @@ Use songs from this library for "library songs" and recommend NEW similar songs.
 
 Return ONLY valid JSON:
 {{
-  "Discovery Weekly": [
+  "Discovery": [
     {{"artist": "Artist", "title": "Song"}},
     {{"artist": "Artist", "title": "Song"}}
   ],
@@ -1522,19 +1525,25 @@ class OctoGenEngine:
             dry_run=dry_run
         )
 
-        # Initialize AI engine
-        max_context = int(self.config.get("ai", {}).get("max_context_songs", 500))
-        max_output = int(self.config.get("ai", {}).get("max_output_tokens", 65535))
-        backend = self.config.get("ai", {}).get("backend", "gemini")
+        # Initialize AI engine (optional if other services are configured)
+        self.ai = None
+        if self.config["ai"]["api_key"]:
+            max_context = int(self.config.get("ai", {}).get("max_context_songs", 500))
+            max_output = int(self.config.get("ai", {}).get("max_output_tokens", 65535))
+            backend = self.config.get("ai", {}).get("backend", "gemini")
 
-        self.ai = AIRecommendationEngine(
-            api_key=self.config["ai"]["api_key"],
-            model=self.config["ai"]["model"],
-            backend=backend,
-            base_url=self.config.get("ai", {}).get("base_url"),
-            max_context_songs=max_context,
-            max_output_tokens=max_output,
-        )
+            self.ai = AIRecommendationEngine(
+                api_key=self.config["ai"]["api_key"],
+                model=self.config["ai"]["model"],
+                backend=backend,
+                base_url=self.config.get("ai", {}).get("base_url"),
+                max_context_songs=max_context,
+                max_output_tokens=max_output,
+            )
+            logger.info("✓ AI engine initialized")
+        else:
+            logger.info("ℹ️  AI engine not configured (using alternative music sources)")
+
 
         # Optional services
         self.lastfm: Optional[LastFMAPI] = None
@@ -1550,6 +1559,24 @@ class OctoGenEngine:
                 self.config["listenbrainz"]["username"],
                 self.config["listenbrainz"].get("token"),
             )
+
+        # Initialize AudioMuse client if enabled
+        self.audiomuse_client = None
+        if self.config.get("audiomuse", {}).get("enabled", False):
+            from audiomuse_client import AudioMuseClient
+            audiomuse_url = self.config["audiomuse"]["url"]
+            audiomuse_client = AudioMuseClient(
+                base_url=audiomuse_url,
+                ai_provider=self.config["audiomuse"]["ai_provider"],
+                ai_model=self.config["audiomuse"]["ai_model"],
+                api_key=self.config["audiomuse"]["ai_api_key"] or None
+            )
+            if audiomuse_client.check_health():
+                logger.info("✅ AudioMuse-AI connected at %s", audiomuse_url)
+                self.audiomuse_client = audiomuse_client
+            else:
+                logger.warning("⚠️ AudioMuse-AI not accessible at %s, falling back to LLM-only mode", audiomuse_url)
+                self.audiomuse_client = None
 
         # Stats
         self.stats = {
@@ -1574,13 +1601,12 @@ class OctoGenEngine:
         """Load all configuration from environment variables"""
         logger.info("Loading configuration from environment variables...")
 
-        # Check required variables
+        # Check required variables (except AI_API_KEY which is now optional)
         required_vars = [
             "NAVIDROME_URL",
             "NAVIDROME_USER",
             "NAVIDROME_PASSWORD",
-            "OCTOFIESTA_URL",
-            "AI_API_KEY"
+            "OCTOFIESTA_URL"
         ]
 
         missing = [var for var in required_vars if not os.getenv(var)]
@@ -1592,7 +1618,6 @@ class OctoGenEngine:
             logger.error("  NAVIDROME_USER      - Navidrome username")
             logger.error("  NAVIDROME_PASSWORD  - Navidrome password")
             logger.error("  OCTOFIESTA_URL      - Octo-Fiesta server URL")
-            logger.error("  AI_API_KEY          - Gemini/OpenAI API key")
             logger.error("")
             logger.error("See ENV_VARS.md for complete reference")
             sys.exit(1)
@@ -1607,7 +1632,7 @@ class OctoGenEngine:
                 "url": os.getenv("OCTOFIESTA_URL")
             },
             "ai": {
-                "api_key": os.getenv("AI_API_KEY"),
+                "api_key": os.getenv("AI_API_KEY", ""),
                 "model": os.getenv("AI_MODEL", "gemini-2.5-flash"),
                 "backend": os.getenv("AI_BACKEND", "gemini"),
                 "base_url": os.getenv("AI_BASE_URL"),
@@ -1630,6 +1655,15 @@ class OctoGenEngine:
                 "enabled": self._get_env_bool("LISTENBRAINZ_ENABLED", False),
                 "username": os.getenv("LISTENBRAINZ_USERNAME", ""),
                 "token": os.getenv("LISTENBRAINZ_TOKEN", "")
+            },
+            "audiomuse": {
+                "enabled": self._get_env_bool("AUDIOMUSE_ENABLED", False),
+                "url": os.getenv("AUDIOMUSE_URL", "http://localhost:8000"),
+                "ai_provider": os.getenv("AUDIOMUSE_AI_PROVIDER", "gemini"),
+                "ai_model": os.getenv("AUDIOMUSE_AI_MODEL", "gemini-2.5-flash"),
+                "ai_api_key": os.getenv("AUDIOMUSE_AI_API_KEY", ""),
+                "songs_per_mix": self._get_env_int("AUDIOMUSE_SONGS_PER_MIX", 25),
+                "llm_songs_per_mix": self._get_env_int("LLM_SONGS_PER_MIX", 5)
             }
         }
 
@@ -1640,6 +1674,8 @@ class OctoGenEngine:
             logger.info("✓ Last.fm enabled: %s", config['lastfm']['username'])
         if config['listenbrainz']['enabled']:
             logger.info("✓ ListenBrainz enabled: %s", config['listenbrainz']['username'])
+        if config['audiomuse']['enabled']:
+            logger.info("✓ AudioMuse-AI enabled: %s", config['audiomuse']['url'])
 
         return config
 
@@ -1659,6 +1695,35 @@ class OctoGenEngine:
         """Validate environment configuration"""
         errors = []
         
+        # Check if at least one music source is configured
+        has_ai = bool(self.config["ai"]["api_key"])
+        has_audiomuse = self.config.get("audiomuse", {}).get("enabled", False)
+        has_lastfm = self.config.get("lastfm", {}).get("enabled", False)
+        has_listenbrainz = self.config.get("listenbrainz", {}).get("enabled", False)
+        
+        if not (has_ai or has_audiomuse or has_lastfm or has_listenbrainz):
+            logger.error("=" * 70)
+            logger.error("❌ No music source configured!")
+            logger.error("❌ OctoGen requires at least one of:")
+            logger.error("   1. AI_API_KEY (for LLM-based recommendations)")
+            logger.error("   2. AUDIOMUSE_ENABLED=true (for AudioMuse-AI sonic analysis)")
+            logger.error("   3. LASTFM_ENABLED=true (for Last.fm recommendations)")
+            logger.error("   4. LISTENBRAINZ_ENABLED=true (for ListenBrainz recommendations)")
+            logger.error("=" * 70)
+            sys.exit(1)
+        
+        # Log available music sources
+        sources = []
+        if has_ai:
+            sources.append("LLM")
+        if has_audiomuse:
+            sources.append("AudioMuse-AI")
+        if has_lastfm:
+            sources.append("Last.fm")
+        if has_listenbrainz:
+            sources.append("ListenBrainz")
+        logger.info("✓ Music sources: %s", ", ".join(sources))
+        
         # Validate URLs
         for name, url in [
             ("Navidrome", self.config["navidrome"]["url"]),
@@ -1671,22 +1736,22 @@ class OctoGenEngine:
             elif url.endswith("/"):
                 logger.warning("%s URL ends with '/'. This will be stripped automatically.", name)
         
-        # Validate AI API key
-        if not self.config["ai"]["api_key"]:
-            errors.append("AI_API_KEY is empty")
-        elif self.config["ai"]["api_key"] in ["your-api-key-here", "changeme", "INSERT_KEY_HERE"]:
-            errors.append("AI_API_KEY appears to be a placeholder - please set a real API key")
-        elif len(self.config["ai"]["api_key"]) < 20:
-            errors.append("AI_API_KEY seems too short - verify it's a valid key")
+        # Validate AI API key only if AI is being used
+        if has_ai:
+            if self.config["ai"]["api_key"] in ["your-api-key-here", "changeme", "INSERT_KEY_HERE"]:
+                errors.append("AI_API_KEY appears to be a placeholder - please set a real API key")
+            elif len(self.config["ai"]["api_key"]) < 20:
+                errors.append("AI_API_KEY seems too short - verify it's a valid key")
         
-        # Validate AI model for backend
-        backend = self.config["ai"]["backend"]
-        model = self.config["ai"]["model"]
-        
-        if backend == "gemini" and not model.startswith("gemini"):
-            logger.warning("Backend is 'gemini' but model is '%s' - this may cause errors", model)
-        elif backend == "openai" and model.startswith("gemini"):
-            logger.warning("Backend is 'openai' but model is '%s' - this may cause errors", model)
+        # Validate AI model for backend (only if AI is configured)
+        if has_ai:
+            backend = self.config["ai"]["backend"]
+            model = self.config["ai"]["model"]
+            
+            if backend == "gemini" and not model.startswith("gemini"):
+                logger.warning("Backend is 'gemini' but model is '%s' - this may cause errors", model)
+            elif backend == "openai" and model.startswith("gemini"):
+                logger.warning("Backend is 'openai' but model is '%s' - this may cause errors", model)
         
         # Validate optional services
         if self.config.get("lastfm", {}).get("enabled", False):
@@ -1981,6 +2046,205 @@ class OctoGenEngine:
         if song_ids and self.nd.create_playlist(name, song_ids):
             self.stats["playlists_created"] += 1
 
+    def _generate_hybrid_daily_mix(
+        self,
+        mix_number: int,
+        genre_focus: str,
+        characteristics: str,
+        top_artists: List[str],
+        top_genres: List[str],
+        favorited_songs: List[Dict],
+        low_rated_songs: Optional[List[Dict]] = None
+    ) -> List[Dict]:
+        """
+        Generate a daily mix using both AudioMuse-AI and LLM
+        
+        Args:
+            mix_number: Mix number (1-6)
+            genre_focus: Main genre focus
+            characteristics: Additional characteristics
+            top_artists: Top artists from library
+            top_genres: Top genres from library
+            favorited_songs: Favorited songs for LLM context
+            low_rated_songs: Low rated songs to avoid
+        
+        Returns:
+            List of song dicts: [{"artist": "...", "title": "..."}]
+        """
+        songs = []
+        
+        # Get configuration
+        audiomuse_songs_count = self.config["audiomuse"]["songs_per_mix"]
+        llm_songs_count = self.config["audiomuse"]["llm_songs_per_mix"]
+        
+        # Get songs from AudioMuse-AI if enabled
+        audiomuse_actual_count = 0
+        if self.audiomuse_client:
+            logger.debug(f"Requesting {audiomuse_songs_count} songs from AudioMuse-AI for Daily Mix {mix_number}")
+            audiomuse_request = f"{characteristics} {genre_focus} music"
+            logger.debug(f"AudioMuse request: '{audiomuse_request}'")
+            audiomuse_songs = self.audiomuse_client.generate_playlist(
+                user_request=audiomuse_request,
+                num_songs=audiomuse_songs_count
+            )
+            
+            # Convert AudioMuse format to Octogen format
+            for song in audiomuse_songs:
+                songs.append({"artist": song.get('artist', ''), "title": song.get('title', '')})
+            
+            audiomuse_actual_count = len(songs)
+            logger.info(f"📻 Daily Mix {mix_number}: Got {audiomuse_actual_count} songs from AudioMuse-AI")
+            if audiomuse_actual_count < audiomuse_songs_count:
+                logger.debug(f"AudioMuse returned fewer songs than requested ({audiomuse_actual_count}/{audiomuse_songs_count})")
+        
+        # Get additional songs from LLM
+        # If AudioMuse returned fewer songs, request more from LLM to reach target
+        num_llm_songs = llm_songs_count if self.audiomuse_client else 30
+        if self.audiomuse_client and audiomuse_actual_count < audiomuse_songs_count:
+            # Request extra LLM songs to compensate
+            shortfall = audiomuse_songs_count - audiomuse_actual_count
+            num_llm_songs = llm_songs_count + shortfall
+            logger.info(f"🔄 AudioMuse returned {audiomuse_actual_count}/{audiomuse_songs_count} songs, requesting {num_llm_songs} from LLM")
+        
+        logger.debug(f"Requesting {num_llm_songs} songs from LLM for Daily Mix {mix_number}")
+        # We'll use the AI engine to generate just the LLM portion
+        llm_songs = self._generate_llm_songs_for_daily_mix(
+            mix_number=mix_number,
+            genre_focus=genre_focus,
+            characteristics=characteristics,
+            num_songs=num_llm_songs,
+            top_artists=top_artists,
+            top_genres=top_genres,
+            favorited_songs=favorited_songs,
+            low_rated_songs=low_rated_songs
+        )
+        
+        songs.extend(llm_songs)
+        
+        logger.info(f"🤖 Daily Mix {mix_number}: Got {len(llm_songs)} songs from LLM")
+        logger.info(f"🎵 Daily Mix {mix_number}: Total {len(songs)} songs (AudioMuse: {audiomuse_actual_count}, LLM: {len(llm_songs)})")
+        
+        return songs[:30]  # Ensure we return exactly 30 songs
+
+    def _generate_llm_songs_for_daily_mix(
+        self,
+        mix_number: int,
+        genre_focus: str,
+        characteristics: str,
+        num_songs: int,
+        top_artists: List[str],
+        top_genres: List[str],
+        favorited_songs: List[Dict],
+        low_rated_songs: Optional[List[Dict]] = None
+    ) -> List[Dict]:
+        """
+        Generate LLM songs for a specific daily mix
+        
+        Returns:
+            List of song dicts: [{"artist": "...", "title": "..."}]
+        """
+        # Build a focused prompt for this specific daily mix
+        artist_list = ", ".join(top_artists[:10])
+        genre_list = ", ".join(top_genres[:6])
+        
+        # Sample of favorited songs for context
+        favorited_sample = [
+            f"{s.get('artist','')} - {s.get('title','')}"
+            for s in favorited_songs[:50]  # Smaller sample for individual mix
+        ]
+        favorited_context = "\n".join(favorited_sample[:20])  # Limit to 20 for focused prompt
+        
+        negative_context = ""
+        if low_rated_songs:
+            negative_sample = [
+                f"{s.get('artist','')} - {s.get('title','')}"
+                for s in low_rated_songs[:20]
+            ]
+            negative_context = f"\n\nSONGS TO AVOID (rated {LOW_RATING_MIN}-{LOW_RATING_MAX} stars):\n" + "\n".join(negative_sample)
+        
+        prompt = f"""You are a music curator creating a {genre_focus} playlist.
+
+User's music taste:
+- Top artists: {artist_list}
+- Top genres: {genre_list}
+
+Sample of favorited songs:
+{favorited_context}
+{negative_context}
+
+Generate {num_songs} {characteristics} {genre_focus} songs. Mix library favorites with new discoveries.
+
+Return ONLY valid JSON array:
+[
+  {{"artist": "Artist Name", "title": "Song Title"}},
+  {{"artist": "Artist Name", "title": "Song Title"}}
+]
+
+CRITICAL RULES:
+- Both "artist" and "title" required
+- Double quotes for ALL strings
+- No trailing commas
+- NEVER recommend avoided songs
+- No markdown, just raw JSON array
+- ESCAPE ALL BACKSLASHES: Use \\\\ not \\
+"""
+        
+        try:
+            if self.ai.backend == "gemini":
+                if not GEMINI_SDK_AVAILABLE:
+                    logger.error("Gemini backend required but not available")
+                    return []
+                
+                from google.genai import types
+                response = self.ai.genai_client.models.generate_content(
+                    model=self.ai.model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=1.0,
+                        max_output_tokens=4096
+                    )
+                )
+                content = response.text
+            else:
+                # OpenAI-compatible API
+                response = self.ai.client.chat.completions.create(
+                    model=self.ai.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=1.0,
+                    max_tokens=4096
+                )
+                content = response.choices[0].message.content
+            
+            # Clean JSON
+            content = re.sub(r'^```(?:json)?\s*', '', content, flags=re.MULTILINE)
+            content = re.sub(r'\s*```$', '', content, flags=re.MULTILINE)
+            content = content.strip()
+            
+            # Extract JSON array
+            json_start = content.find('[')
+            json_end = content.rfind(']')
+            if json_start != -1 and json_end != -1:
+                content = content[json_start:json_end + 1]
+            
+            songs = json.loads(content)
+            
+            if not isinstance(songs, list):
+                logger.error("LLM response is not a JSON array")
+                return []
+            
+            # Validate songs
+            valid_songs = [
+                song for song in songs
+                if isinstance(song, dict) and "artist" in song and "title" in song
+            ]
+            
+            return valid_songs[:num_songs]
+            
+        except Exception as e:
+            logger.error(f"Failed to generate LLM songs for Daily Mix {mix_number}: {e}")
+            return []
+
+
     def run(self) -> None:
         """Run the main discovery engine."""
         start_time = datetime.now()
@@ -2001,14 +2265,17 @@ class OctoGenEngine:
             write_health_status("running", "Analyzing music library")
             # Analyze library
             logger.info("Analyzing music library...")
+            logger.debug("Fetching starred songs from Navidrome")
             favorited_songs = self.nd.get_starred_songs()
     
             if not favorited_songs:
-                logger.error("No starred songs found! Please star some songs in Navidrome first.")
-                logger.info("Attempting Last.fm and ListenBrainz recommendations only...")
-                # Skip AI generation but continue with external services
-                all_playlists = {}
-            else:
+                logger.warning("No starred songs found - library analysis limited")
+                logger.debug("Continuing with alternative music sources")
+    
+            # Generate AI playlists (only if AI is configured)
+            all_playlists = {}
+            if self.ai and favorited_songs:
+                logger.debug("AI engine is configured, proceeding with AI generation")
                 # Continue with normal AI generation
                 top_artists = self.nd.get_top_artists(100)
                 top_genres = self.nd.get_top_genres(20)
@@ -2019,6 +2286,7 @@ class OctoGenEngine:
                 logger.info("Top genres: %s", ", ".join(top_genres[:5]))
                 logger.info("Songs to avoid: %d (rated %d-%d stars)",
                            len(low_rated_songs), LOW_RATING_MIN, LOW_RATING_MAX)
+                logger.debug(f"Library analysis complete: {len(top_artists)} artists, {len(top_genres)} genres")
     
                 # Generate AI playlists
                 logger.info("=" * 70)
@@ -2033,20 +2301,87 @@ class OctoGenEngine:
                 )
     
                 self.stats["ai_calls"] = self.ai.call_count
+                logger.debug(f"AI generation complete, made {self.ai.call_count} API calls")
+            elif not self.ai:
+                logger.info("=" * 70)
+                logger.info("AI not configured - using alternative music sources only")
+                logger.info("=" * 70)
+                logger.debug("Setting up library data for alternative sources")
+                # Set required variables for alternative sources
+                top_artists = self.nd.get_top_artists(100) if favorited_songs else []
+                top_genres = self.nd.get_top_genres(20) if favorited_songs else []
+                low_rated_songs = self.nd.get_low_rated_songs() if favorited_songs else []
+            else:
+                logger.info("=" * 70)
+                logger.info("No starred songs - skipping AI generation")
+                logger.info("=" * 70)
+                logger.debug("No library data available for analysis")
+                top_artists = []
+                top_genres = []
+                low_rated_songs = []
     
-                # If AI failed and no external services, exit with error
-                if not all_playlists and not self.lastfm and not self.listenbrainz:
-                    logger.error("=" * 70)
-                    logger.error("❌ AI generation failed and no external services configured")
-                    logger.error("❌ Nothing to process - exiting with error")
-                    logger.error("=" * 70)
-                    write_health_status("unhealthy", "AI rate limit hit, no fallback available")
-                    sys.exit(1)
+            # Check if we have any music sources available
+            if not all_playlists and not self.audiomuse_client and not self.lastfm and not self.listenbrainz:
+                logger.error("=" * 70)
+                logger.error("❌ No playlists generated and no alternative services configured")
+                logger.error("❌ Nothing to process - exiting with error")
+                logger.error("=" * 70)
+                logger.debug("Available sources check: AI=%s, AudioMuse=%s, Last.fm=%s, ListenBrainz=%s",
+                           bool(all_playlists), bool(self.audiomuse_client), bool(self.lastfm), bool(self.listenbrainz))
+                write_health_status("unhealthy", "No music sources available")
+                sys.exit(1)
     
                 if all_playlists:
-                    for playlist_name, songs in all_playlists.items():
-                        if isinstance(songs, list) and songs:
-                            self.create_playlist(playlist_name, songs, max_songs=100)
+                    # Handle hybrid playlists if AudioMuse is enabled
+                    if self.audiomuse_client:
+                        logger.info("=" * 70)
+                        logger.info("GENERATING HYBRID PLAYLISTS (AudioMuse + LLM)")
+                        logger.info("=" * 70)
+                        
+                        # Define all hybrid playlist configurations (everything except Discovery)
+                        hybrid_playlist_configs = [
+                            # Daily Mixes
+                            {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else DEFAULT_DAILY_MIX_GENRES[0], "characteristics": "energetic", "num": 1},
+                            {"name": "Daily Mix 2", "genre": top_genres[1] if len(top_genres) > 1 else DEFAULT_DAILY_MIX_GENRES[1], "characteristics": "catchy upbeat", "num": 2},
+                            {"name": "Daily Mix 3", "genre": top_genres[2] if len(top_genres) > 2 else DEFAULT_DAILY_MIX_GENRES[2], "characteristics": "danceable rhythmic", "num": 3},
+                            {"name": "Daily Mix 4", "genre": top_genres[3] if len(top_genres) > 3 else DEFAULT_DAILY_MIX_GENRES[3], "characteristics": "rhythmic bass-heavy", "num": 4},
+                            {"name": "Daily Mix 5", "genre": top_genres[4] if len(top_genres) > 4 else DEFAULT_DAILY_MIX_GENRES[4], "characteristics": "alternative atmospheric", "num": 5},
+                            {"name": "Daily Mix 6", "genre": top_genres[5] if len(top_genres) > 5 else DEFAULT_DAILY_MIX_GENRES[5], "characteristics": "smooth melodic", "num": 6},
+                            # Mood/Activity playlists
+                            {"name": "Chill Vibes", "genre": "ambient", "characteristics": "relaxing calm peaceful", "num": 8},
+                            {"name": "Workout Energy", "genre": "high-energy", "characteristics": "upbeat motivating intense", "num": 9},
+                            {"name": "Focus Flow", "genre": "instrumental", "characteristics": "ambient atmospheric concentration", "num": 10},
+                            {"name": "Drive Time", "genre": "upbeat", "characteristics": "driving energetic feel-good", "num": 11}
+                        ]
+                        
+                        # Generate and create hybrid playlists
+                        for mix_config in hybrid_playlist_configs:
+                            hybrid_songs = self._generate_hybrid_daily_mix(
+                                mix_number=mix_config["num"],
+                                genre_focus=mix_config["genre"],
+                                characteristics=mix_config["characteristics"],
+                                top_artists=top_artists,
+                                top_genres=top_genres,
+                                favorited_songs=favorited_songs,
+                                low_rated_songs=low_rated_songs
+                            )
+                            
+                            if hybrid_songs:
+                                self.create_playlist(mix_config["name"], hybrid_songs, max_songs=30)
+                        
+                        # Create Discovery from AI response (LLM-only for new discoveries)
+                        if "Discovery" in all_playlists:
+                            discovery_songs = all_playlists["Discovery"]
+                            if isinstance(discovery_songs, list) and discovery_songs:
+                                logger.info("=" * 70)
+                                logger.info("DISCOVERY (LLM-only for new discoveries)")
+                                logger.info("=" * 70)
+                                self.create_playlist("Discovery", discovery_songs, max_songs=50)
+                    else:
+                        # Original behavior: use all AI-generated playlists
+                        for playlist_name, songs in all_playlists.items():
+                            if isinstance(songs, list) and songs:
+                                self.create_playlist(playlist_name, songs, max_songs=100)
 
             
             # External services (run regardless of starred songs)

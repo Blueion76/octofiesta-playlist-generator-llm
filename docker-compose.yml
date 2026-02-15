@@ -21,11 +21,11 @@ services:
       OCTOFIESTA_URL: http://octofiesta:5274
 
       # ============================================================================
-      # REQUIRED - AI Provider
+      # OPTIONAL - AI Provider (LLM-based recommendations)
       # ============================================================================
-      # Note: For backward compatibility, you can use GEMINI_API_KEY in your .env
-      # file and set AI_API_KEY=${GEMINI_API_KEY} there, or just use AI_API_KEY
-      AI_API_KEY: ${AI_API_KEY}
+      # At least one music source must be configured:
+      # AI_API_KEY, AudioMuse-AI, Last.fm, or ListenBrainz
+      AI_API_KEY: ${AI_API_KEY:-}
 
       # ============================================================================
       # OPTIONAL - AI Configuration
@@ -48,9 +48,9 @@ services:
       # ============================================================================
       # OPTIONAL - Scheduling Configuration
       # ============================================================================
-      # Cron expression for automatic scheduling (e.g., "0 6 * * *" for daily at 6 AM)
+      # Cron expression for automatic scheduling (e.g., "0 2 * * *" for daily at 2 AM)
       # Leave unset or use "manual" to disable scheduling
-      SCHEDULE_CRON: ${SCHEDULE_CRON:-0 6 * * *}
+      SCHEDULE_CRON: ${SCHEDULE_CRON:-0 2 * * *}
       
       # Timezone for scheduled runs (IANA timezone name)
       TZ: ${TZ:-America/Chicago}
@@ -86,6 +86,18 @@ services:
       
       # Delay after Navidrome scan completes (seconds)
       PERF_POST_SCAN_DELAY: ${PERF_POST_SCAN_DELAY:-2}
+
+      # ============================================================================
+      # OPTIONAL - AudioMuse-AI Integration
+      # ============================================================================
+      # AudioMuse-AI for sonic analysis-based recommendations
+      AUDIOMUSE_ENABLED: ${AUDIOMUSE_ENABLED:-false}
+      AUDIOMUSE_URL: ${AUDIOMUSE_URL:-http://localhost:8000}
+      AUDIOMUSE_AI_PROVIDER: ${AUDIOMUSE_AI_PROVIDER:-gemini}
+      AUDIOMUSE_AI_MODEL: ${AUDIOMUSE_AI_MODEL:-gemini-2.5-flash}
+      AUDIOMUSE_AI_API_KEY: ${AUDIOMUSE_AI_API_KEY:-}
+      AUDIOMUSE_SONGS_PER_MIX: ${AUDIOMUSE_SONGS_PER_MIX:-25}
+      LLM_SONGS_PER_MIX: ${LLM_SONGS_PER_MIX:-5}
 
       # ============================================================================
       # OPTIONAL - System Configuration

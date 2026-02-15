@@ -16,7 +16,7 @@ Built with AI assistance. Contributions and pull requests welcome!
 - **Variety seed**: Different recommendations every day
 
 ### 🎵 Generated Playlists
-- **Discovery Weekly** (50 songs) - New music discoveries
+- **Discovery** (50 songs) - New music discoveries
 - **Daily Mix 1-6** (30 songs each) - Genre-based mixes
 - **Chill Vibes** (30 songs) - Relaxing tracks
 - **Workout Energy** (30 songs) - High-energy music
@@ -24,6 +24,35 @@ Built with AI assistance. Contributions and pull requests welcome!
 - **Drive Time** (30 songs) - Upbeat driving music
 
 **Total: 11 playlists, 350+ songs automatically curated!**
+
+### 🎛️ Hybrid Mode (AudioMuse-AI Integration)
+
+OctoGen can optionally integrate with **AudioMuse-AI** for enhanced sonic analysis:
+
+- **Default Mode**: All playlists use LLM (current behavior)
+- **Hybrid Mode**: Most playlists use 25 AudioMuse-AI + 5 LLM songs
+
+Enable hybrid mode by setting:
+```bash
+AUDIOMUSE_ENABLED=true
+AUDIOMUSE_URL=http://localhost:8000
+```
+
+**Hybrid playlists** (when AudioMuse enabled):
+- **Daily Mix 1-6**: Genre-based mixes (25 AudioMuse + 5 LLM)
+- **Chill Vibes**: Relaxing tracks (25 AudioMuse + 5 LLM)
+- **Workout Energy**: High-energy music (25 AudioMuse + 5 LLM)
+- **Focus Flow**: Ambient/instrumental (25 AudioMuse + 5 LLM)
+- **Drive Time**: Upbeat driving music (25 AudioMuse + 5 LLM)
+
+**LLM-only playlists** (always):
+- **Discovery**: New discoveries (50 LLM songs)
+
+This combines:
+- **AudioMuse-AI**: Sonic similarity, mood analysis, audio feature matching
+- **LLM**: Creative variety, metadata-based recommendations
+
+See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 
 ### 🎯 Smart Features
 - **Star rating filtering**: Excludes 1-2 star rated songs
@@ -41,9 +70,13 @@ Built with AI assistance. Contributions and pull requests welcome!
 ### Prerequisites
 - **Navidrome** server running
 - **Octo-Fiesta** configured for downloads
-- **AI API key** (Gemini recommended - free tier available)
+- **At least one music source**:
+  - AI API key (Gemini recommended - free tier available), OR
+  - AudioMuse-AI configured, OR
+  - Last.fm enabled, OR
+  - ListenBrainz enabled
 
-### 1. Get Gemini API Key (Free)
+### 1. Get API Key (Optional - if using LLM)
 Visit: [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 
 ### 2. Create Configuration
@@ -55,7 +88,7 @@ cat > .env << 'EOF'
 NAVIDROME_URL=http://192.168.1.100:4533
 NAVIDROME_USER=admin
 NAVIDROME_PASSWORD=your_password
-OCTOFIESTA_URL=http://192.168.1.100:8080
+OCTOFIESTA_URL=http://192.168.1.100:5274
 AI_API_KEY=your_llm_api_key
 
 # Optional
@@ -64,7 +97,7 @@ AI_BACKEND=gemini
 LOG_LEVEL=INFO
 
 # Scheduling 
-SCHEDULE_CRON=0 6 * * *
+SCHEDULE_CRON=0 2 * * *
 TZ=America/Chicago
 EOF
 ```
@@ -90,7 +123,7 @@ docker logs -f octogen
 ### 4. Check Your Navidrome
 Open Navidrome and find your new playlists! 🎉
 
-**Playlists update automatically at 6 AM daily!**
+**Playlists update automatically at 2 AM daily!**
 
 ---
 
@@ -111,11 +144,11 @@ services:
       NAVIDROME_URL: http://navidrome:4533
       NAVIDROME_USER: admin
       NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
-      OCTOFIESTA_URL: http://octofiesta:8080
+      OCTOFIESTA_URL: http://octofiesta:5274
       AI_API_KEY: ${GEMINI_API_KEY}
 
       # Scheduling 
-      SCHEDULE_CRON: "0 6 * * *"  # Daily at 6 AM
+      SCHEDULE_CRON: "0 2 * * *"  # Daily at 2 AM
       TZ: America/Chicago
 
       # Optional
@@ -135,6 +168,60 @@ docker-compose logs -f octogen
 
 ---
 
+## 🎨 AudioMuse-AI Setup (Optional)
+
+To enable hybrid playlist generation with sonic analysis:
+
+### 1. Install AudioMuse-AI
+
+Follow the [AudioMuse-AI documentation](https://github.com/NeptuneHub/AudioMuse-AI) to deploy:
+
+```yaml
+# docker-compose.yml excerpt
+services:
+  audiomuse-flask:
+    image: ghcr.io/neptunehub/audiomuse-ai:latest
+    ports:
+      - "8000:8000"
+    environment:
+      SERVICE_TYPE: "flask"
+      MEDIASERVER_TYPE: "navidrome"
+      NAVIDROME_URL: "http://navidrome:4533"
+      NAVIDROME_USER: "admin"
+      NAVIDROME_PASSWORD: "${NAVIDROME_PASSWORD}"
+      # ... other AudioMuse config
+```
+
+### 2. Run Initial Analysis
+
+1. Open AudioMuse-AI at `http://localhost:8000`
+2. Navigate to "Analysis and Clustering"
+3. Click "Start Analysis" (one-time, analyzes your library)
+4. Wait for completion
+
+### 3. Enable in OctoGen
+
+Add to your `.env`:
+
+```bash
+AUDIOMUSE_ENABLED=true
+AUDIOMUSE_URL=http://localhost:8000
+AUDIOMUSE_AI_PROVIDER=gemini
+AUDIOMUSE_AI_MODEL=gemini-2.5-flash
+AUDIOMUSE_AI_API_KEY=your_api_key_here
+```
+
+### 4. Adjust Mix Ratios (Optional)
+
+```bash
+AUDIOMUSE_SONGS_PER_MIX=25  # Songs from AudioMuse (default: 25)
+LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
+```
+
+**Note:** Total songs per daily mix remains 30.
+
+---
+
 ## 🔧 Configuration
 
 ### Required Environment Variables
@@ -144,8 +231,13 @@ docker-compose logs -f octogen
 | `NAVIDROME_URL` | Navidrome server URL | `http://192.168.1.100:4533` |
 | `NAVIDROME_USER` | Navidrome username | `admin` |
 | `NAVIDROME_PASSWORD` | Navidrome password | `your_password` |
-| `OCTOFIESTA_URL` | Octo-Fiesta server URL | `http://192.168.1.100:8080` |
-| `AI_API_KEY` | AI provider API key | `your_llm_api_key` |
+| `OCTOFIESTA_URL` | Octo-Fiesta server URL | `http://192.168.1.100:5274` |
+
+**Note**: At least one music source must also be configured:
+- `AI_API_KEY` (for LLM-based playlists), OR
+- `AUDIOMUSE_ENABLED=true` (for AudioMuse-AI sonic analysis), OR  
+- `LASTFM_ENABLED=true` (for Last.fm recommendations), OR
+- `LISTENBRAINZ_ENABLED=true` (for ListenBrainz recommendations)
 
 ### Optional Configuration
 
@@ -154,7 +246,7 @@ docker-compose logs -f octogen
 | `AI_MODEL` | `gemini-2.5-flash` | AI model to use |
 | `AI_BACKEND` | `gemini` | Backend: `gemini` or `openai` |
 | `AI_BASE_URL` | (none) | Custom API endpoint |
-| `SCHEDULE_CRON` | (none) | Cron schedule (e.g., `0 6 * * *`) |
+| `SCHEDULE_CRON` | (none) | Cron schedule (e.g., `0 2 * * *`) |
 | `TZ` | `UTC` | Timezone (e.g., `America/Chicago`) |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
@@ -215,7 +307,7 @@ OctoGen now includes **built-in cron scheduling** - no external cron daemon or s
 Just add these two environment variables:
 
 ```bash
-SCHEDULE_CRON=0 6 * * *    # Daily at 6 AM
+SCHEDULE_CRON=0 2 * * *    # Daily at 2 AM
 TZ=America/Chicago         # Your timezone
 ```
 
@@ -224,7 +316,7 @@ The container stays running and automatically executes on schedule. You'll see c
 ```
 🕐 OCTOGEN SCHEDULER
 ══════════════════════════════════════════════════════════════════════
-Schedule: 0 6 * * *
+Schedule: 0 2 * * *
 Timezone: America/Chicago
 ══════════════════════════════════════════════════════════════════════
 📅 Next scheduled run: 2026-02-11 06:00:00
@@ -235,7 +327,7 @@ Timezone: America/Chicago
 
 | Schedule | Cron Expression | Description |
 |----------|----------------|-------------|
-| Daily at 6 AM | `0 6 * * *` | Once per day |
+| Daily at 2 AM | `0 2 * * *` | Once per day |
 | Twice daily | `0 */12 * * *` | Every 12 hours |
 | Every 6 hours | `0 */6 * * *` | 4 times per day |
 | Weekly (Sunday 3 AM) | `0 3 * * 0` | Once per week |
@@ -294,7 +386,7 @@ kind: CronJob
 metadata:
   name: octogen
 spec:
-  schedule: "0 6 * * *"
+  schedule: "0 2 * * *"
   timeZone: "America/Chicago"  # Kubernetes 1.25+
   jobTemplate:
     spec:
