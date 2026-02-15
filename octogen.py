@@ -1448,10 +1448,10 @@ CRITICAL RULES:
                 logger.warning("You can retry immediately as this attempt was not recorded")
                 logger.error("AI request failed: %s", str(e)[:200])
                 return {}, "rate_limit"
-            else:
-                # For non-rate-limit errors, keep the call counted
-                logger.error("AI request failed (counted): %s", str(e)[:200])
-                return {}, "api_error"
+            
+            # For non-rate-limit errors, keep the call counted
+            logger.error("AI request failed (counted): %s", str(e)[:200])
+            return {}, "api_error"
             
     def _generate_with_retry(self, generate_func, *args, **kwargs) -> str:
         """Retry AI generation with exponential backoff for rate limits."""
@@ -2694,7 +2694,10 @@ CRITICAL RULES:
             write_health_status("healthy", f"Last run completed successfully at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info("=" * 70)
             logger.info("Total time: %dm %ds", elapsed.seconds // 60, elapsed.seconds % 60)
-            logger.info("AI API calls: %d / %d", self.stats["ai_calls"], self.ai.max_calls if self.ai else 0)
+            if self.ai:
+                logger.info("AI API calls: %d / %d", self.stats["ai_calls"], self.ai.max_calls)
+            else:
+                logger.info("AI: Not configured")
             logger.info("Playlists created: %d", self.stats["playlists_created"])
             logger.info("Songs in library: %d", self.stats["songs_found"])
             logger.info("Songs downloaded: %d", self.stats["songs_downloaded"])
