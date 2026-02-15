@@ -26,6 +26,9 @@ pyyaml>=6.0.1
 # Progress Indicators
 rich>=13.7.0
 
+# Fixes malformed JSON AI responses
+json-repair
+
 # Note: Uses Python standard library for:
 # - json, os, sys, pathlib
 # - logging, hashlib, secrets
