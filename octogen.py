@@ -1446,13 +1446,12 @@ CRITICAL RULES:
                 self.call_count -= 1
                 logger.warning("Rate limit error detected - call count rolled back to %d", self.call_count)
                 logger.warning("You can retry immediately as this attempt was not recorded")
+                logger.error("AI request failed: %s", str(e)[:200])
                 return {}, "rate_limit"
             else:
                 # For non-rate-limit errors, keep the call counted
                 logger.error("AI request failed (counted): %s", str(e)[:200])
-            
-            logger.error("AI request failed: %s", str(e)[:200])
-            return {}, "api_error"
+                return {}, "api_error"
             
     def _generate_with_retry(self, generate_func, *args, **kwargs) -> str:
         """Retry AI generation with exponential backoff for rate limits."""
