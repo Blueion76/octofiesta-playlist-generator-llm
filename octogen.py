@@ -1341,26 +1341,32 @@ CRITICAL RULES:
         top_genres: List[str],
         favorited_songs: List[Dict],
         low_rated_songs: Optional[List[Dict]] = None,
-    ) -> Dict[str, List[Dict]]:
-        """Generate playlists using configured backend."""
+    ) -> Tuple[Dict[str, List[Dict]], Optional[str]]:
+        """Generate playlists using configured backend.
+        
+        Returns:
+            Tuple of (playlists_dict, error_reason)
+            - playlists_dict: Dictionary of playlist names to song lists
+            - error_reason: None if successful, or error code string like 'rate_limit', 'quota_exceeded', 'invalid_response', 'api_error'
+        """
 
-        #Check if library changed and invalidate cache if needed
+        # Check if library changed and invalidate cache if needed
         if self._should_invalidate_cache(favorited_songs):
             self._invalidate_cache()
         
         # Check memory cache first
         if self.response_cache is not None:
             logger.info("Using cached AI response (in-memory)")
-            return self.response_cache
+            return self.response_cache, None
         
         # Check daily limit BEFORE checking call count
         if not self._can_call_ai_today():
             logger.error("Daily AI call limit reached. Program can restart but won't call AI again today.")
-            return {}
+            return {}, "quota_exceeded"
         
         if self.call_count >= self.max_calls:
             logger.error("AI call limit reached (%d)", self.max_calls)
-            return {}
+            return {}, "quota_exceeded"
         
         logger.info("Making AI API call (%d/%d)...", self.call_count + 1, self.max_calls)
         self.call_count += 1
@@ -1392,13 +1398,13 @@ CRITICAL RULES:
             
             if not content.endswith('}'):
                 logger.error("Response incomplete - missing closing brace")
-                return {}
+                return {}, "invalid_response"
             
             all_playlists = json.loads(content)
             
             if not isinstance(all_playlists, dict):
                 logger.error("AI response is not a JSON object")
-                return {}
+                return {}, "invalid_response"
             
             # Validate and clean
             for playlist_name, songs in list(all_playlists.items()):
@@ -1420,11 +1426,11 @@ CRITICAL RULES:
             
             total = sum(len(songs) for songs in all_playlists.values())
             logger.info("Generated %d playlists (%d songs)", len(all_playlists), total)
-            return all_playlists
+            return all_playlists, None
             
         except json.JSONDecodeError as e:
             logger.error("JSON parse error at line %d col %d: %s", e.lineno, e.colno, e.msg)
-            return {}
+            return {}, "invalid_response"
         except Exception as e:
             error_msg = str(e).lower()
             error_type = type(e).__name__
@@ -1440,12 +1446,12 @@ CRITICAL RULES:
                 self.call_count -= 1
                 logger.warning("Rate limit error detected - call count rolled back to %d", self.call_count)
                 logger.warning("You can retry immediately as this attempt was not recorded")
-            else:
-                # For non-rate-limit errors, keep the call counted
-                logger.error("AI request failed (counted): %s", str(e)[:200])
+                logger.error("AI request failed: %s", str(e)[:200])
+                return {}, "rate_limit"
             
-            logger.error("AI request failed: %s", str(e)[:200])
-            return {}
+            # For non-rate-limit errors, keep the call counted
+            logger.error("AI request failed (counted): %s", str(e)[:200])
+            return {}, "api_error"
             
     def _generate_with_retry(self, generate_func, *args, **kwargs) -> str:
         """Retry AI generation with exponential backoff for rate limits."""
@@ -1484,6 +1490,72 @@ CRITICAL RULES:
         
         raise Exception("Max retries exceeded")
         
+
+# ============================================================================
+# SERVICE TRACKER
+# ============================================================================
+
+class ServiceTracker:
+    """Tracks execution status and outcomes for different services."""
+    
+    def __init__(self):
+        self.services = {}
+    
+    def record_service(self, name: str, success: bool, **metadata):
+        """Record service execution outcome with metadata.
+        
+        Args:
+            name: Service name (e.g., 'ai_playlists', 'audiomuse', 'lastfm', 'listenbrainz')
+            success: Whether the service executed successfully
+            **metadata: Additional metadata like playlists created, songs added, error reason, etc.
+        
+        Note:
+            Timestamp is recorded for each service for tracking and potential future use
+            (e.g., per-service cooldowns, debugging, audit logs).
+        """
+        self.services[name] = {
+            "success": success,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **metadata
+        }
+        logger.debug("Service tracker: Recorded %s - success=%s, metadata=%s", name, success, metadata)
+    
+    def get_summary(self) -> Dict:
+        """Return summary of all service outcomes."""
+        return {
+            "services": self.services,
+            "total_services": len(self.services),
+            "successful_services": sum(1 for s in self.services.values() if s.get("success")),
+            "failed_services": sum(1 for s in self.services.values() if not s.get("success"))
+        }
+    
+    def should_skip_cooldown(self) -> bool:
+        """Determine if cooldown should apply based on what succeeded.
+        
+        Returns True if we should skip the cooldown (allow immediate retry).
+        This happens when only external services succeeded but AI failed.
+        """
+        ai_success = self.services.get("ai_playlists", {}).get("success", False)
+        audiomuse_success = self.services.get("audiomuse", {}).get("success", False)
+        
+        # If primary services (AI or AudioMuse) succeeded, apply cooldown
+        if ai_success or audiomuse_success:
+            return False
+        
+        # If primary services failed but external services succeeded, we can skip cooldown
+        external_success = (
+            self.services.get("lastfm", {}).get("success", False) or
+            self.services.get("listenbrainz", {}).get("success", False)
+        )
+        
+        return external_success
+    
+    def get_primary_services_succeeded(self) -> bool:
+        """Check if any primary service (AI or AudioMuse) succeeded."""
+        ai_success = self.services.get("ai_playlists", {}).get("success", False)
+        audiomuse_success = self.services.get("audiomuse", {}).get("success", False)
+        return ai_success or audiomuse_success
+
 
 # ============================================================================
 # MAIN ENGINE
@@ -1593,6 +1665,9 @@ class OctoGenEngine:
 
         # Track processed songs to avoid duplicates
         self.processed_songs: Set[Tuple[str, str]] = set()
+
+        # Initialize service tracker
+        self.service_tracker = ServiceTracker()
 
         # Configurable delays
         self.download_delay = self.config.get("performance", {}).get("download_delay_seconds", 10)
@@ -1786,35 +1861,41 @@ class OctoGenEngine:
         logger.info("✅ Configuration validated successfully")
 
     def _check_run_cooldown(self) -> bool:
-        """Check if enough time has passed since last run.
+        """Check if enough time has passed since last run with smart service-based cooldown.
         
         Returns True if we should run, False if still in cooldown.
         """
         run_tracker_file = BASE_DIR / "octogen_last_run.json"
         
-        # Determine cooldown period
+        # Determine cooldown periods
         schedule_cron = os.getenv("SCHEDULE_CRON", "").strip()
+        external_services_cooldown = float(os.getenv("EXTERNAL_SERVICES_COOLDOWN_HOURS", "1.0"))
         
         if schedule_cron and schedule_cron.lower() not in ("manual", "false", "no", "off", "disabled"):
-            # Use 90% of detected cron interval
+            # Use 90% of detected cron interval for full cooldown
             detected_interval = calculate_cron_interval(schedule_cron)
-            cooldown_hours = detected_interval * 0.9
-            logger.info("🕐 Cooldown period: %.1f hours (90%% of cron interval)", cooldown_hours)
+            full_cooldown_hours = detected_interval * 0.9
+            logger.info("🕐 Full cooldown period: %.1f hours (90%% of cron interval)", full_cooldown_hours)
         else:
-            # Manual mode - use environment variable
-            cooldown_hours = float(os.getenv("MIN_RUN_INTERVAL_HOURS", "6"))
-            logger.info("🕐 Cooldown period: %.1f hours (manual mode)", cooldown_hours)
+            # Manual mode - use environment variable for full cooldown
+            full_cooldown_hours = float(os.getenv("MIN_RUN_INTERVAL_HOURS", "6"))
+            logger.info("🕐 Full cooldown period: %.1f hours (manual mode)", full_cooldown_hours)
+        
+        logger.info("🕐 External services cooldown: %.1f hours", external_services_cooldown)
         
         # Check last run time
         if not run_tracker_file.exists():
+            logger.info("✅ First run ever - no cooldown")
             return True  # First run ever
         
         try:
             with open(run_tracker_file, 'r') as f:
                 data = json.load(f)
                 last_run_str = data.get('last_run_timestamp')
+                services = data.get('services', {})
                 
                 if not last_run_str:
+                    logger.info("✅ No last run timestamp - allowing run")
                     return True
                 
                 last_run = datetime.fromisoformat(last_run_str)
@@ -1826,18 +1907,52 @@ class OctoGenEngine:
                 
                 hours_since_last = (now - last_run).total_seconds() / 3600
                 
-                if hours_since_last < cooldown_hours:
+                # Check if primary services (AI or AudioMuse) succeeded last time
+                ai_succeeded = services.get("ai_playlists", {}).get("success", False)
+                audiomuse_succeeded = services.get("audiomuse", {}).get("success", False)
+                primary_services_succeeded = ai_succeeded or audiomuse_succeeded
+                
+                # Determine which cooldown to apply
+                if primary_services_succeeded:
+                    # Full cooldown if primary services succeeded
+                    cooldown_to_apply = full_cooldown_hours
+                    cooldown_type = "Full cooldown"
+                else:
+                    # Reduced cooldown if only external services succeeded or all failed
+                    cooldown_to_apply = external_services_cooldown
+                    cooldown_type = "Reduced cooldown (external services only)"
+                
+                if hours_since_last < cooldown_to_apply:
                     logger.info("=" * 70)
                     logger.info("⏭️  OctoGen ran %.1f hours ago (cooldown: %.1f hours)", 
-                                 hours_since_last, cooldown_hours)
+                                 hours_since_last, cooldown_to_apply)
+                    logger.info("⏭️  Cooldown type: %s", cooldown_type)
                     logger.info("⏭️  Skipping to prevent duplicate run")
                     logger.info("⏭️  Last run: %s", last_run.strftime("%Y-%m-%d %H:%M:%S"))
                     logger.info("⏭️  Next run allowed after: %s", 
-                                 (last_run + timedelta(hours=cooldown_hours)).strftime("%Y-%m-%d %H:%M:%S"))
+                                 (last_run + timedelta(hours=cooldown_to_apply)).strftime("%Y-%m-%d %H:%M:%S"))
+                    
+                    # Show what services succeeded/failed last time
+                    if services:
+                        logger.info("⏭️  Last run services:")
+                        for service_name, service_data in services.items():
+                            status = "✅" if service_data.get("success") else "❌"
+                            reason = f" ({service_data.get('reason')})" if not service_data.get("success") else ""
+                            logger.info("⏭️    %s %s%s", status, service_name, reason)
+                    
                     logger.info("=" * 70)
                     return False
                 
-                logger.info("✅ Cooldown passed (%.1f hours since last run)", hours_since_last)
+                logger.info("✅ Cooldown passed (%.1f hours since last run, %s)", hours_since_last, cooldown_type)
+                
+                # Show what services succeeded/failed last time for context
+                if services:
+                    logger.info("ℹ️  Last run services:")
+                    for service_name, service_data in services.items():
+                        status = "✅" if service_data.get("success") else "❌"
+                        reason = f" ({service_data.get('reason')})" if not service_data.get("success") else ""
+                        logger.info("   %s %s%s", status, service_name, reason)
+                
                 return True
                 
         except Exception as e:
@@ -1845,19 +1960,26 @@ class OctoGenEngine:
             return True  # Allow run if we can't read tracker
 
     def _record_successful_run(self) -> None:
-        """Record that a successful run completed."""
+        """Record that a successful run completed with service tracking data."""
         run_tracker_file = BASE_DIR / "octogen_last_run.json"
         
         try:
             # Use single timestamp to ensure consistency
             now = datetime.now(timezone.utc)
+            
+            # Prepare service tracker data
+            services_data = {}
+            for service_name, service_info in self.service_tracker.services.items():
+                services_data[service_name] = service_info
+            
             with open(run_tracker_file, 'w') as f:
                 json.dump({
                     'last_run_timestamp': now.isoformat(),
                     'last_run_date': now.strftime("%Y-%m-%d"),
-                    'last_run_formatted': now.strftime("%Y-%m-%d %H:%M:%S")
+                    'last_run_formatted': now.strftime("%Y-%m-%d %H:%M:%S"),
+                    'services': services_data
                 }, f, indent=2)
-            logger.info("✓ Recorded successful run timestamp")
+            logger.info("✓ Recorded successful run timestamp with service tracking")
         except Exception as e:
             logger.error("Could not write run tracker: %s", str(e))
 
@@ -2289,7 +2411,7 @@ CRITICAL RULES:
                 logger.info("AI CALL LIMIT: %d maximum", self.ai.max_calls)
                 logger.info("=" * 70)
     
-                all_playlists = self.ai.generate_all_playlists(
+                all_playlists, ai_error = self.ai.generate_all_playlists(
                     top_artists,
                     top_genres,
                     favorited_songs,
@@ -2298,6 +2420,27 @@ CRITICAL RULES:
     
                 self.stats["ai_calls"] = self.ai.call_count
                 logger.debug(f"AI generation complete, made {self.ai.call_count} API calls")
+                
+                # Track AI service outcome
+                if ai_error:
+                    self.service_tracker.record_service(
+                        "ai_playlists",
+                        success=False,
+                        reason=ai_error,
+                        api_calls=self.ai.call_count
+                    )
+                    logger.warning("AI service failed: %s", ai_error)
+                else:
+                    playlist_count = len(all_playlists)
+                    song_count = sum(len(songs) for songs in all_playlists.values())
+                    self.service_tracker.record_service(
+                        "ai_playlists",
+                        success=True,
+                        playlists=playlist_count,
+                        songs=song_count,
+                        api_calls=self.ai.call_count
+                    )
+                    logger.info("AI service succeeded: %d playlists, %d songs", playlist_count, song_count)
             elif not self.ai:
                 logger.info("=" * 70)
                 logger.info("AI not configured - using alternative music sources only")
@@ -2334,6 +2477,8 @@ CRITICAL RULES:
                         logger.info("GENERATING HYBRID PLAYLISTS (AudioMuse + LLM)")
                         logger.info("=" * 70)
                         
+                        playlists_before_audiomuse = self.stats["playlists_created"]
+                        
                         # Define all hybrid playlist configurations (everything except Discovery)
                         hybrid_playlist_configs = [
                             # Daily Mixes
@@ -2365,6 +2510,15 @@ CRITICAL RULES:
                             if hybrid_songs:
                                 self.create_playlist(mix_config["name"], hybrid_songs, max_songs=30)
                         
+                        # Track AudioMuse service
+                        audiomuse_playlists = self.stats["playlists_created"] - playlists_before_audiomuse
+                        self.service_tracker.record_service(
+                            "audiomuse",
+                            success=True,
+                            playlists=audiomuse_playlists
+                        )
+                        logger.info("AudioMuse-AI service succeeded: %d playlists", audiomuse_playlists)
+                        
                         # Create Discovery from AI response (LLM-only for new discoveries)
                         if "Discovery" in all_playlists:
                             discovery_songs = all_playlists["Discovery"]
@@ -2385,85 +2539,158 @@ CRITICAL RULES:
                 logger.info("=" * 70)
                 logger.info("LAST.FM RECOMMENDATIONS")
                 logger.info("=" * 70)
-                recs = self.lastfm.get_recommended_tracks(50)
-                if recs:
-                    self.create_playlist("Last.fm Recommended", recs, 50)
+                try:
+                    playlists_before = self.stats["playlists_created"]
+                    recs = self.lastfm.get_recommended_tracks(50)
+                    if recs:
+                        self.create_playlist("Last.fm Recommended", recs, 50)
+                    playlists_created = self.stats["playlists_created"] - playlists_before
+                    
+                    self.service_tracker.record_service(
+                        "lastfm",
+                        success=True,
+                        playlists=playlists_created,
+                        songs=len(recs) if recs else 0
+                    )
+                    logger.info("Last.fm service succeeded: %d playlists, %d songs", playlists_created, len(recs) if recs else 0)
+                except Exception as e:
+                    self.service_tracker.record_service(
+                        "lastfm",
+                        success=False,
+                        reason=str(e)[:100]
+                    )
+                    logger.warning("Last.fm service failed: %s", e)
     
             if self.listenbrainz:
                 logger.info("Creating ListenBrainz 'Created For You' playlists...")
-                lb_playlists = self.listenbrainz.get_created_for_you_playlists()
-                
-                for lb_playlist in lb_playlists:
-                    # The data is nested inside a "playlist" key
-                    playlist_data = lb_playlist.get("playlist", {})
-                    playlist_name = playlist_data.get("title", "Unknown")
+                try:
+                    playlists_before = self.stats["playlists_created"]
+                    lb_playlists = self.listenbrainz.get_created_for_you_playlists()
                     
-                    # Get the identifier from the nested structure
-                    playlist_mbid = None
-                    if "identifier" in playlist_data:
-                        identifier = playlist_data["identifier"]
-                        # identifier might be a string or a list
-                        if isinstance(identifier, str):
-                            playlist_mbid = identifier.split("/")[-1]
-                        elif isinstance(identifier, list) and len(identifier) > 0:
-                            playlist_mbid = identifier[0].split("/")[-1]
-                    
-                    if not playlist_mbid:
-                        logger.error("Cannot find playlist ID for: %s", playlist_name)
-                        continue
-                    
-                    # Determine if this is current week or last week
-                    renamed_playlist = None
-                    should_process = True
-                    
-                    if "Weekly Exploration" in playlist_name and "week of" in playlist_name:
-                        try:
-                            # Extract the date string
-                            date_part = playlist_name.split("week of ")[1].split()[0]  # Gets "2026-02-09"
-                            playlist_date = datetime.strptime(date_part, "%Y-%m-%d")
-                            
-                            # Calculate start of current week (Monday)
-                            today = datetime.now()
-                            start_of_this_week = today - timedelta(days=today.weekday())
-                            start_of_last_week = start_of_this_week - timedelta(days=7)
-                            
-                            # Compare dates (ignoring time)
-                            playlist_week_start = playlist_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                            this_week_start = start_of_this_week.replace(hour=0, minute=0, second=0, microsecond=0)
-                            last_week_start = start_of_last_week.replace(hour=0, minute=0, second=0, microsecond=0)
-                            
-                            if playlist_week_start == this_week_start:
-                                renamed_playlist = "LB: Weekly Exploration"
-                            elif playlist_week_start == last_week_start:
-                                renamed_playlist = "LB: Last Week's Exploration"
-                            else:
-                                # Older than 2 weeks - skip
-                                logger.info("Skipping old Weekly Exploration: %s (keeping only last 2 weeks)", playlist_name)
-                                should_process = False
-                        except Exception as e:
-                            logger.warning("Could not parse date from playlist: %s", playlist_name)
+                    for lb_playlist in lb_playlists:
+                        # The data is nested inside a "playlist" key
+                        playlist_data = lb_playlist.get("playlist", {})
+                        playlist_name = playlist_data.get("title", "Unknown")
+                        
+                        # Get the identifier from the nested structure
+                        playlist_mbid = None
+                        if "identifier" in playlist_data:
+                            identifier = playlist_data["identifier"]
+                            # identifier might be a string or a list
+                            if isinstance(identifier, str):
+                                playlist_mbid = identifier.split("/")[-1]
+                            elif isinstance(identifier, list) and len(identifier) > 0:
+                                playlist_mbid = identifier[0].split("/")[-1]
+                        
+                        if not playlist_mbid:
+                            logger.error("Cannot find playlist ID for: %s", playlist_name)
+                            continue
+                        
+                        # Determine if this is current week or last week
+                        renamed_playlist = None
+                        should_process = True
+                        
+                        if "Weekly Exploration" in playlist_name and "week of" in playlist_name:
+                            try:
+                                # Extract the date string
+                                date_part = playlist_name.split("week of ")[1].split()[0]  # Gets "2026-02-09"
+                                playlist_date = datetime.strptime(date_part, "%Y-%m-%d")
+                                
+                                # Calculate start of current week (Monday)
+                                today = datetime.now()
+                                start_of_this_week = today - timedelta(days=today.weekday())
+                                start_of_last_week = start_of_this_week - timedelta(days=7)
+                                
+                                # Compare dates (ignoring time)
+                                playlist_week_start = playlist_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                                this_week_start = start_of_this_week.replace(hour=0, minute=0, second=0, microsecond=0)
+                                last_week_start = start_of_last_week.replace(hour=0, minute=0, second=0, microsecond=0)
+                                
+                                if playlist_week_start == this_week_start:
+                                    renamed_playlist = "LB: Weekly Exploration"
+                                elif playlist_week_start == last_week_start:
+                                    renamed_playlist = "LB: Last Week's Exploration"
+                                else:
+                                    # Older than 2 weeks - skip
+                                    logger.info("Skipping old Weekly Exploration: %s (keeping only last 2 weeks)", playlist_name)
+                                    should_process = False
+                            except Exception as e:
+                                logger.warning("Could not parse date from playlist: %s", playlist_name)
+                                renamed_playlist = f"LB: {playlist_name}"
+                        else:
+                            # Non-weekly playlists (Daily Jams, etc.)
                             renamed_playlist = f"LB: {playlist_name}"
-                    else:
-                        # Non-weekly playlists (Daily Jams, etc.)
-                        renamed_playlist = f"LB: {playlist_name}"
+                        
+                        if not should_process:
+                            continue
+                        
+                        logger.info("Processing: %s -> %s (MBID: %s)", playlist_name, renamed_playlist, playlist_mbid)
+                        tracks = self.listenbrainz.get_playlist_tracks(playlist_mbid)
+                        
+                        # Process songs with download support (limit to 50)
+                        found_ids = []
+                        for track in tracks[:50]:
+                            # Use the same processing as AI recommendations (includes download)
+                            song_id = self._process_single_recommendation(track)
+                            if song_id:
+                                found_ids.append(song_id)
+                        
+                        if found_ids:
+                            self.nd.create_playlist(renamed_playlist, found_ids)
                     
-                    if not should_process:
-                        continue
+                    playlists_created = self.stats["playlists_created"] - playlists_before
                     
-                    logger.info("Processing: %s -> %s (MBID: %s)", playlist_name, renamed_playlist, playlist_mbid)
-                    tracks = self.listenbrainz.get_playlist_tracks(playlist_mbid)
-                    
-                    # Process songs with download support (limit to 50)
-                    found_ids = []
-                    for track in tracks[:50]:
-                        # Use the same processing as AI recommendations (includes download)
-                        song_id = self._process_single_recommendation(track)
-                        if song_id:
-                            found_ids.append(song_id)
-                    
-                    if found_ids:
-                        self.nd.create_playlist(renamed_playlist, found_ids)
+                    self.service_tracker.record_service(
+                        "listenbrainz",
+                        success=True,
+                        playlists=playlists_created
+                    )
+                    logger.info("ListenBrainz service succeeded: %d playlists", playlists_created)
+                except Exception as e:
+                    self.service_tracker.record_service(
+                        "listenbrainz",
+                        success=False,
+                        reason=str(e)[:100]
+                    )
+                    logger.warning("ListenBrainz service failed: %s", e)
     
+            # Service Execution Summary
+            logger.info("=" * 70)
+            logger.info("SERVICE EXECUTION SUMMARY")
+            logger.info("=" * 70)
+            
+            for service_name, service_data in self.service_tracker.services.items():
+                if service_data.get("success"):
+                    playlists = service_data.get("playlists", 0)
+                    songs = service_data.get("songs", 0)
+                    api_calls = service_data.get("api_calls", "")
+                    
+                    service_display = {
+                        "ai_playlists": "AI Playlists",
+                        "audiomuse": "AudioMuse-AI",
+                        "lastfm": "Last.fm",
+                        "listenbrainz": "ListenBrainz"
+                    }.get(service_name, service_name)
+                    
+                    if api_calls:
+                        logger.info("✅ %s: %d playlists created (%d API calls)", service_display, playlists, api_calls)
+                    elif songs:
+                        logger.info("✅ %s: %d playlists created (%d songs)", service_display, playlists, songs)
+                    else:
+                        logger.info("✅ %s: %d playlists created", service_display, playlists)
+                else:
+                    reason = service_data.get("reason", "unknown")
+                    service_display = {
+                        "ai_playlists": "AI Playlists",
+                        "audiomuse": "AudioMuse-AI",
+                        "lastfm": "Last.fm",
+                        "listenbrainz": "ListenBrainz"
+                    }.get(service_name, service_name)
+                    
+                    logger.warning("❌ %s: FAILED (reason: %s)", service_display, reason)
+            
+            logger.info("=" * 70)
+            
             # Summary
             elapsed = datetime.now() - start_time
             logger.info("=" * 70)
@@ -2471,7 +2698,10 @@ CRITICAL RULES:
             write_health_status("healthy", f"Last run completed successfully at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info("=" * 70)
             logger.info("Total time: %dm %ds", elapsed.seconds // 60, elapsed.seconds % 60)
-            logger.info("AI API calls: %d / %d", self.stats["ai_calls"], self.ai.max_calls)
+            if self.ai:
+                logger.info("AI API calls: %d / %d", self.stats["ai_calls"], self.ai.max_calls)
+            else:
+                logger.info("AI: Not configured")
             logger.info("Playlists created: %d", self.stats["playlists_created"])
             logger.info("Songs in library: %d", self.stats["songs_found"])
             logger.info("Songs downloaded: %d", self.stats["songs_downloaded"])
