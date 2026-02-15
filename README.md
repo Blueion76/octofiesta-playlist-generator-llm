@@ -25,6 +25,25 @@ Built with AI assistance. Contributions and pull requests welcome!
 
 **Total: 11 playlists, 350+ songs automatically curated!**
 
+### 🎛️ Hybrid Mode (AudioMuse-AI Integration)
+
+OctoGen can optionally integrate with **AudioMuse-AI** for enhanced sonic analysis:
+
+- **Default Mode**: 30 songs from LLM (current behavior)
+- **Hybrid Mode**: 25 songs from AudioMuse-AI + 5 songs from LLM
+
+Enable hybrid mode by setting:
+```bash
+AUDIOMUSE_ENABLED=true
+AUDIOMUSE_URL=http://localhost:8000
+```
+
+This combines:
+- **AudioMuse-AI**: Sonic similarity, mood analysis, audio feature matching
+- **LLM**: Creative variety, metadata-based recommendations
+
+See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
+
 ### 🎯 Smart Features
 - **Star rating filtering**: Excludes 1-2 star rated songs
 - **Duplicate detection**: No repeated tracks across playlists
@@ -132,6 +151,60 @@ Run:
 docker-compose up -d
 docker-compose logs -f octogen
 ```
+
+---
+
+## 🎨 AudioMuse-AI Setup (Optional)
+
+To enable hybrid playlist generation with sonic analysis:
+
+### 1. Install AudioMuse-AI
+
+Follow the [AudioMuse-AI documentation](https://github.com/NeptuneHub/AudioMuse-AI) to deploy:
+
+```yaml
+# docker-compose.yml excerpt
+services:
+  audiomuse-flask:
+    image: ghcr.io/neptunehub/audiomuse-ai:latest
+    ports:
+      - "8000:8000"
+    environment:
+      SERVICE_TYPE: "flask"
+      MEDIASERVER_TYPE: "navidrome"
+      NAVIDROME_URL: "http://navidrome:4533"
+      NAVIDROME_USER: "admin"
+      NAVIDROME_PASSWORD: "${NAVIDROME_PASSWORD}"
+      # ... other AudioMuse config
+```
+
+### 2. Run Initial Analysis
+
+1. Open AudioMuse-AI at `http://localhost:8000`
+2. Navigate to "Analysis and Clustering"
+3. Click "Start Analysis" (one-time, analyzes your library)
+4. Wait for completion
+
+### 3. Enable in OctoGen
+
+Add to your `.env`:
+
+```bash
+AUDIOMUSE_ENABLED=true
+AUDIOMUSE_URL=http://localhost:8000
+AUDIOMUSE_AI_PROVIDER=gemini
+AUDIOMUSE_AI_MODEL=gemini-2.5-flash
+AUDIOMUSE_AI_API_KEY=your_api_key_here
+```
+
+### 4. Adjust Mix Ratios (Optional)
+
+```bash
+AUDIOMUSE_SONGS_PER_MIX=25  # Songs from AudioMuse (default: 25)
+LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
+```
+
+**Note:** Total songs per daily mix remains 30.
 
 ---
 

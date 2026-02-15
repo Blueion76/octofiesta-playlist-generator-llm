@@ -613,6 +613,148 @@ LOG_LEVEL=INFO
 
 ---
 
+## 🎨 AudioMuse-AI Integration (Optional)
+
+AudioMuse-AI provides sonic analysis-based playlist generation using audio feature extraction and similarity matching.
+
+### AUDIOMUSE_ENABLED
+**Description**: Enable AudioMuse-AI integration for hybrid playlist generation  
+**Type**: Boolean  
+**Default**: `false`  
+**Options**: `true`, `false`  
+**Example**:
+```bash
+AUDIOMUSE_ENABLED=true
+```
+**Notes**:
+- When enabled, Daily Mix 1-6 use hybrid mode (25 AudioMuse + 5 LLM songs)
+- When disabled, OctoGen uses LLM-only mode (30 LLM songs per mix)
+- Requires AudioMuse-AI server to be running and accessible
+- Falls back to LLM-only if AudioMuse-AI is unreachable
+
+---
+
+### AUDIOMUSE_URL
+**Description**: URL of your AudioMuse-AI server  
+**Format**: `http://hostname:port` or `https://hostname:port`  
+**Default**: `http://localhost:8000`  
+**Examples**:
+```bash
+AUDIOMUSE_URL=http://localhost:8000
+AUDIOMUSE_URL=http://audiomuse:8000
+AUDIOMUSE_URL=http://192.168.1.100:8000
+```
+**Notes**:
+- Do not include trailing slash
+- If in Docker, can use service name: `http://audiomuse:8000`
+- Health check is performed at startup
+
+---
+
+### AUDIOMUSE_AI_PROVIDER
+**Description**: AI provider for AudioMuse-AI playlist generation  
+**Type**: String  
+**Default**: `gemini`  
+**Options**: `gemini`, `openai`, `ollama`, `mistral`  
+**Example**:
+```bash
+AUDIOMUSE_AI_PROVIDER=gemini
+```
+**Notes**:
+- Must match a provider supported by AudioMuse-AI
+- Case-insensitive (converted to uppercase internally)
+
+---
+
+### AUDIOMUSE_AI_MODEL
+**Description**: AI model to use with AudioMuse-AI  
+**Type**: String  
+**Default**: `gemini-2.5-flash`  
+**Examples**:
+```bash
+AUDIOMUSE_AI_MODEL=gemini-2.5-flash
+AUDIOMUSE_AI_MODEL=gpt-4o
+AUDIOMUSE_AI_MODEL=llama3.2
+```
+**Notes**:
+- Model must be supported by the selected AI provider
+- Gemini 2.5 Flash recommended for best cost/performance
+
+---
+
+### AUDIOMUSE_AI_API_KEY
+**Description**: API key for the AudioMuse AI provider  
+**Type**: String  
+**Default**: Empty (not required for Ollama)  
+**Example**:
+```bash
+AUDIOMUSE_AI_API_KEY=your_gemini_api_key_here
+```
+**Notes**:
+- Required for: Gemini, OpenAI, Mistral
+- Not required for: Ollama (local models)
+- Keep this secret secure
+
+---
+
+### AUDIOMUSE_SONGS_PER_MIX
+**Description**: Number of songs from AudioMuse-AI per Daily Mix  
+**Type**: Integer  
+**Default**: `25`  
+**Range**: 1-30  
+**Example**:
+```bash
+AUDIOMUSE_SONGS_PER_MIX=25
+```
+**Notes**:
+- Total songs per mix is always 30
+- Remainder filled by LLM (see `LLM_SONGS_PER_MIX`)
+- Example: 25 AudioMuse + 5 LLM = 30 total
+
+---
+
+### LLM_SONGS_PER_MIX
+**Description**: Number of songs from LLM when AudioMuse is enabled  
+**Type**: Integer  
+**Default**: `5`  
+**Range**: 0-30  
+**Example**:
+```bash
+LLM_SONGS_PER_MIX=5
+```
+**Notes**:
+- Only applies when `AUDIOMUSE_ENABLED=true`
+- When AudioMuse disabled, all 30 songs come from LLM
+- Ensure `AUDIOMUSE_SONGS_PER_MIX + LLM_SONGS_PER_MIX ≤ 30`
+
+---
+
+### AudioMuse-AI Setup Example
+
+To enable hybrid mode with AudioMuse-AI:
+
+```bash
+# Enable AudioMuse integration
+AUDIOMUSE_ENABLED=true
+AUDIOMUSE_URL=http://audiomuse:8000
+
+# Configure AI provider (same as main OctoGen)
+AUDIOMUSE_AI_PROVIDER=gemini
+AUDIOMUSE_AI_MODEL=gemini-2.5-flash
+AUDIOMUSE_AI_API_KEY=your_api_key_here
+
+# Adjust mix ratios (optional)
+AUDIOMUSE_SONGS_PER_MIX=25
+LLM_SONGS_PER_MIX=5
+```
+
+**Benefits of Hybrid Mode**:
+- **AudioMuse-AI**: Sonic similarity, mood analysis, audio features
+- **LLM**: Creative variety, metadata-based recommendations
+- **Combined**: Best of both approaches for diverse, high-quality playlists
+
+---
+
 ## 🔗 Related Documentation
 
 - **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
@@ -690,9 +832,10 @@ docker logs octogen | grep "Timezone:"
 | **Scheduling** | 3 | SCHEDULE_CRON, TZ, MIN_RUN_INTERVAL_HOURS |
 | **Last.fm** | 3 | LASTFM_ENABLED, LASTFM_API_KEY, LASTFM_USERNAME |
 | **ListenBrainz** | 3 | LISTENBRAINZ_ENABLED, LISTENBRAINZ_USERNAME, LISTENBRAINZ_TOKEN |
+| **AudioMuse-AI** | 7 | AUDIOMUSE_ENABLED, AUDIOMUSE_URL, AUDIOMUSE_AI_PROVIDER, AUDIOMUSE_AI_MODEL, AUDIOMUSE_AI_API_KEY, AUDIOMUSE_SONGS_PER_MIX, LLM_SONGS_PER_MIX |
 | **Performance** | 5 | PERF_ALBUM_BATCH_SIZE, PERF_MAX_ALBUMS_SCAN, PERF_SCAN_TIMEOUT, PERF_DOWNLOAD_DELAY, PERF_POST_SCAN_DELAY |
 | **System** | 2 | LOG_LEVEL, OCTOGEN_DATA_DIR |
-| **Total** | **26** | |
+| **Total** | **33** | |
 
 ---
 
