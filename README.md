@@ -16,7 +16,7 @@ Built with AI assistance. Contributions and pull requests welcome!
 - **Variety seed**: Different recommendations every day
 
 ### 🎵 Generated Playlists
-- **Discovery Weekly** (50 songs) - New music discoveries
+- **Discovery** (50 songs) - New music discoveries
 - **Daily Mix 1-6** (30 songs each) - Genre-based mixes
 - **Chill Vibes** (30 songs) - Relaxing tracks
 - **Workout Energy** (30 songs) - High-energy music
@@ -46,7 +46,7 @@ AUDIOMUSE_URL=http://localhost:8000
 - **Drive Time**: Upbeat driving music (25 AudioMuse + 5 LLM)
 
 **LLM-only playlists** (always):
-- **Discovery Weekly**: New discoveries (50 LLM songs)
+- **Discovery**: New discoveries (50 LLM songs)
 
 This combines:
 - **AudioMuse-AI**: Sonic similarity, mood analysis, audio feature matching

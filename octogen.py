@@ -1230,7 +1230,7 @@ Use songs from this library for "library songs" and recommend NEW similar songs.
 
         return f"""Generate exactly 11 playlists (Variety Seed: {variety_seed}):
 
-1. "Discovery Weekly" (50 songs): 45 new discoveries + 5 library
+1. "Discovery" (50 songs): 45 new discoveries + 5 library
 {chr(10).join(genre_instructions)}
 8. "Chill Vibes" (30 songs): 25 library + 5 new relaxing
 9. "Workout Energy" (30 songs): 25 library + 5 new high-energy
@@ -1239,7 +1239,7 @@ Use songs from this library for "library songs" and recommend NEW similar songs.
 
 Return ONLY valid JSON:
 {{
-  "Discovery Weekly": [
+  "Discovery": [
     {{"artist": "Artist", "title": "Song"}},
     {{"artist": "Artist", "title": "Song"}}
   ],
@@ -2263,7 +2263,7 @@ CRITICAL RULES:
                         logger.info("GENERATING HYBRID PLAYLISTS (AudioMuse + LLM)")
                         logger.info("=" * 70)
                         
-                        # Define all hybrid playlist configurations (everything except Discovery Weekly)
+                        # Define all hybrid playlist configurations (everything except Discovery)
                         hybrid_playlist_configs = [
                             # Daily Mixes
                             {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else "rock", "characteristics": "energetic", "num": 1},
@@ -2294,14 +2294,14 @@ CRITICAL RULES:
                             if hybrid_songs:
                                 self.create_playlist(mix_config["name"], hybrid_songs, max_songs=30)
                         
-                        # Create Discovery Weekly from AI response (LLM-only for new discoveries)
-                        if "Discovery Weekly" in all_playlists:
-                            discovery_songs = all_playlists["Discovery Weekly"]
+                        # Create Discovery from AI response (LLM-only for new discoveries)
+                        if "Discovery" in all_playlists:
+                            discovery_songs = all_playlists["Discovery"]
                             if isinstance(discovery_songs, list) and discovery_songs:
                                 logger.info("=" * 70)
-                                logger.info("DISCOVERY WEEKLY (LLM-only for new discoveries)")
+                                logger.info("DISCOVERY (LLM-only for new discoveries)")
                                 logger.info("=" * 70)
-                                self.create_playlist("Discovery Weekly", discovery_songs, max_songs=50)
+                                self.create_playlist("Discovery", discovery_songs, max_songs=50)
                     else:
                         # Original behavior: use all AI-generated playlists
                         for playlist_name, songs in all_playlists.items():
