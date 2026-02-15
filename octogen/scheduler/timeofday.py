@@ -6,20 +6,36 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
 
+def get_timezone() -> ZoneInfo:
+    """Get configured timezone from TZ environment variable.
+
+    Returns:
+        ZoneInfo object for configured timezone (defaults to UTC)
+    """
+    tz_name = os.getenv("TZ", "UTC")
+    try:
+        return ZoneInfo(tz_name)
+    except Exception:
+        logger.warning(f"Invalid TZ={tz_name}, falling back to UTC")
+        return ZoneInfo("UTC")
+
+
 def get_current_period() -> str:
     """Determine current time period based on environment configuration.
-    
+
     Returns:
         Period name: "morning", "afternoon", "evening", or "night"
     """
-    # Get current hour in UTC (or local time if TZ is set)
-    now = datetime.now()
+    # Get current hour in local timezone
+    tz = get_timezone()
+    now = datetime.now(tz)
     hour = now.hour
-    
+
     # Get period boundaries from environment (defaults match requirements)
     morning_start = int(os.getenv("TIMEOFDAY_MORNING_START", "6"))
     morning_end = int(os.getenv("TIMEOFDAY_MORNING_END", "12"))
@@ -29,7 +45,7 @@ def get_current_period() -> str:
     evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "24"))
     night_start = int(os.getenv("TIMEOFDAY_NIGHT_START", "0"))
     night_end = int(os.getenv("TIMEOFDAY_NIGHT_END", "6"))
-    
+
     # Determine period
     if morning_start <= hour < morning_end:
         return "morning"
@@ -43,10 +59,10 @@ def get_current_period() -> str:
 
 def get_period_display_name(period: str) -> str:
     """Get display name for time period.
-    
+
     Args:
         period: Period name (morning, afternoon, evening, night)
-        
+
     Returns:
         Display name with time range
     """
@@ -58,29 +74,29 @@ def get_period_display_name(period: str) -> str:
     evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "24"))
     night_start = int(os.getenv("TIMEOFDAY_NIGHT_START", "0"))
     night_end = int(os.getenv("TIMEOFDAY_NIGHT_END", "6"))
-    
+
     period_names = {
         "morning": f"Morning Mix ({morning_start} AM - {morning_end} PM)",
         "afternoon": f"Afternoon Flow ({afternoon_start} PM - {afternoon_end} PM)",
         "evening": f"Evening Chill ({evening_start} PM - {evening_end} PM)",
         "night": f"Night Vibes ({night_start} AM - {night_end} AM)"
     }
-    
+
     return period_names.get(period, f"{period.capitalize()} Playlist")
 
 
 def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
     """Get time-of-day context for AI prompts.
-    
+
     Args:
         period: Optional period override, otherwise uses current period
-        
+
     Returns:
         Dict with period, description, and mood guidance
     """
     if period is None:
         period = get_current_period()
-    
+
     contexts = {
         "morning": {
             "period": "morning",
@@ -115,52 +131,53 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
                        "Minimal vocals, slow tempos, peaceful instrumentals."
         }
     }
-    
+
     return contexts.get(period, contexts["afternoon"])
 
 
 def should_regenerate_period_playlist(data_dir: Optional[Path] = None) -> Tuple[bool, str]:
     """Check if time period playlist should be regenerated.
-    
+
     Args:
         data_dir: Data directory path
-        
+
     Returns:
         Tuple of (should_regenerate, reason)
     """
     if data_dir is None:
         data_dir = Path(os.getenv("OCTOGEN_DATA_DIR", Path.cwd()))
-    
+
     # Check if feature is enabled
     enabled = os.getenv("TIMEOFDAY_ENABLED", "true").lower() in ("true", "yes", "1", "on")
     if not enabled:
         return False, "Time-of-day playlists disabled"
-    
+
     tracker_file = data_dir / "octogen_timeofday_last.json"
     current_period = get_current_period()
-    
+
     # First run or no tracker file
     if not tracker_file.exists():
         return True, f"First time generating {current_period} playlist"
-    
+
     try:
         with open(tracker_file, 'r') as f:
             data = json.load(f)
-            last_period = data.get("last_period")
-            last_generated = data.get("last_generated")
-            
-            # Check if period changed
-            if last_period != current_period:
-                return True, f"Time period changed from {last_period} to {current_period}"
-            
-            # Check if refresh on period change is enabled
-            refresh_enabled = os.getenv("TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE", "true").lower() in ("true", "yes", "1", "on")
-            if not refresh_enabled:
-                return False, f"Already generated for {current_period} period"
-            
-            # Don't regenerate if already done for this period
+
+        last_period = data.get("last_period")
+        last_generated = data.get("last_generated")
+
+        # Check if period changed
+        if last_period != current_period:
+            return True, f"Time period changed from {last_period} to {current_period}"
+
+        # Check if refresh on period change is enabled
+        refresh_enabled = os.getenv("TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE", "true").lower() in ("true", "yes", "1", "on")
+        if not refresh_enabled:
             return False, f"Already generated for {current_period} period"
-            
+
+        # Don't regenerate if already done for this period
+        return False, f"Already generated for {current_period} period"
+
     except Exception as e:
         logger.warning(f"Error reading time-of-day tracker: {e}")
         return True, "Error reading tracker, regenerating"
@@ -168,7 +185,7 @@ def should_regenerate_period_playlist(data_dir: Optional[Path] = None) -> Tuple[
 
 def record_period_playlist_generation(period: Optional[str] = None, playlist_name: str = "", data_dir: Optional[Path] = None) -> None:
     """Record that a time period playlist was generated.
-    
+
     Args:
         period: Time period (or current if None)
         playlist_name: Name of the generated playlist
@@ -176,33 +193,33 @@ def record_period_playlist_generation(period: Optional[str] = None, playlist_nam
     """
     if data_dir is None:
         data_dir = Path(os.getenv("OCTOGEN_DATA_DIR", Path.cwd()))
-    
+
     if period is None:
         period = get_current_period()
-    
+
     tracker_file = data_dir / "octogen_timeofday_last.json"
-    
+
     try:
         now = datetime.now(timezone.utc)
-        
+
         data = {
             "last_period": period,
             "last_generated": now.isoformat(),
             "playlist_name": playlist_name or get_period_display_name(period)
         }
-        
+
         with open(tracker_file, 'w') as f:
             json.dump(data, f, indent=2)
-            
+
         logger.info(f"✓ Recorded time-of-day playlist generation: {period}")
-        
+
     except Exception as e:
         logger.error(f"Error recording time-of-day playlist generation: {e}")
 
 
 def get_period_playlist_size() -> int:
     """Get configured playlist size for time-of-day playlists.
-    
+
     Returns:
         Number of songs per time-period playlist
     """
@@ -215,10 +232,10 @@ def get_period_playlist_size() -> int:
 
 def _parse_iso_timestamp(timestamp_str: str) -> datetime:
     """Parse ISO timestamp string to datetime object.
-    
+
     Args:
         timestamp_str: ISO format timestamp string
-        
+
     Returns:
         Timezone-aware datetime object
     """
@@ -227,192 +244,205 @@ def _parse_iso_timestamp(timestamp_str: str) -> datetime:
 
 def get_period_target_hour(period: str) -> int:
     """Get the target generation hour for a given period.
-    
+
     Args:
         period: Period name (morning, afternoon, evening, night)
-        
+
     Returns:
         Target hour (24-hour format) when this period playlist should generate
     """
     target_hours = {
-        "morning": 6,    # Morning Mix at 6am
-        "afternoon": 12, # Afternoon Flow at 12pm (noon)
-        "evening": 16,   # Evening Chill at 4pm
-        "night": 22      # Night Vibes at 10pm
+        "morning": 6,      # Morning Mix at 6am
+        "afternoon": 12,   # Afternoon Flow at 12pm (noon)
+        "evening": 16,     # Evening Chill at 4pm
+        "night": 22        # Night Vibes at 10pm
     }
+
     return target_hours.get(period, 6)
 
 
 def is_within_generation_window(target_hour: int, tolerance_minutes: int = 30) -> bool:
     """Check if current time is within generation window of target hour.
-    
+
     Args:
-        target_hour: Target hour for generation (0-23)
+        target_hour: Target hour for generation (0-23) in LOCAL timezone
         tolerance_minutes: Minutes before/after target hour to allow (default: 30)
-        
+
     Returns:
         True if current time is within the generation window
     """
-    now = datetime.now(timezone.utc)
+    # Use local timezone for time checks
+    tz = get_timezone()
+    now = datetime.now(tz)
     current_hour = now.hour
     current_minute = now.minute
-    
+
     # Convert to total minutes since midnight for easier comparison
     current_minutes = current_hour * 60 + current_minute
     target_minutes = target_hour * 60
-    
+
     # Calculate difference (handling midnight wraparound)
     diff = abs(current_minutes - target_minutes)
+
     # Handle wraparound case (e.g., 23:50 to 00:10)
     if diff > 720:  # More than 12 hours means we wrapped
         diff = 1440 - diff  # 1440 = 24 hours in minutes
-    
+
     return diff <= tolerance_minutes
 
 
 def should_generate_period_playlist_now(period: Optional[str] = None, data_dir: Optional[Path] = None) -> Tuple[bool, str]:
     """Check if period playlist should be generated at current time.
-    
+
     This implements time-gating logic:
     - Only generate at designated hour (with ±30 min tolerance)
     - Track last generation to prevent duplicates
     - Respect timezone settings
-    
+
     Args:
         period: Optional period override, otherwise uses current period
         data_dir: Data directory path
-        
+
     Returns:
         Tuple of (should_generate, reason)
     """
     if data_dir is None:
         data_dir = Path(os.getenv("OCTOGEN_DATA_DIR", Path.cwd()))
-    
+
     # Check if feature is enabled
     enabled = os.getenv("TIMEOFDAY_ENABLED", "true").lower() in ("true", "yes", "1", "on")
     if not enabled:
         return False, "Time-of-day playlists disabled"
-    
+
     if period is None:
         period = get_current_period()
-    
+
     # Get target hour for this period
     target_hour = get_period_target_hour(period)
-    
+
     # Check if we're within the generation window
     if not is_within_generation_window(target_hour):
-        now = datetime.now()
-        return False, f"Not at designated generation time (current: {now.hour}:{now.minute:02d}, target: {target_hour}:00 ±30min)"
-    
+        tz = get_timezone()
+        now = datetime.now(tz)
+        tz_name = now.strftime("%Z")  # Shows CST, EST, PST, etc.
+        return False, f"Not at designated generation time (current: {now.hour}:{now.minute:02d} {tz_name}, target: {target_hour}:00 ±30min)"
+
     # Check if we already generated recently (within this window)
     tracker_file = data_dir / "octogen_timeofday_last.json"
-    
+
     if tracker_file.exists():
         try:
             with open(tracker_file, 'r') as f:
                 data = json.load(f)
-                last_period = data.get("last_period")
-                last_generated_str = data.get("last_generated")
-                
-                if last_generated_str:
-                    last_generated = _parse_iso_timestamp(last_generated_str)
-                    now = datetime.now(timezone.utc)
-                    
-                    # Don't regenerate if we generated for this period within the last hour
-                    time_since_last = (now - last_generated).total_seconds() / 3600  # hours
-                    
-                    if last_period == period and time_since_last < 1.0:
-                        return False, f"Already generated {period} playlist {time_since_last:.1f} hours ago"
+
+            last_period = data.get("last_period")
+            last_generated_str = data.get("last_generated")
+
+            if last_generated_str:
+                last_generated = _parse_iso_timestamp(last_generated_str)
+                now = datetime.now(timezone.utc)
+
+                # Don't regenerate if we generated for this period within the last hour
+                time_since_last = (now - last_generated).total_seconds() / 3600  # hours
+
+                if last_period == period and time_since_last < 1.0:
+                    return False, f"Already generated {period} playlist {time_since_last:.1f} hours ago"
+
         except Exception as e:
             logger.warning(f"Error reading time-of-day tracker: {e}")
-    
+
     # All checks passed
     return True, f"At designated generation time for {period} playlist (target: {target_hour}:00)"
 
 
 def is_scheduled_mode() -> bool:
     """Check if OctoGen is running in scheduled mode.
-    
+
     Returns:
         True if SCHEDULE_CRON is set and not disabled
     """
     schedule_cron = os.getenv("SCHEDULE_CRON", "").strip()
+
     if not schedule_cron:
         return False
+
     if schedule_cron.lower() in ("manual", "false", "no", "off", "disabled"):
         return False
+
     return True
 
 
 def should_generate_regular_playlists(data_dir: Optional[Path] = None) -> Tuple[bool, str]:
     """Check if regular playlists (Daily Mix, etc.) should be generated now.
-    
+
     Regular playlists should ONLY run when:
     1. In scheduled mode (SCHEDULE_CRON is set)
     2. At the designated cron time
     3. Haven't generated within cooldown period
-    
+
     Args:
         data_dir: Data directory path
-        
+
     Returns:
         Tuple of (should_generate, reason)
     """
     if data_dir is None:
         data_dir = Path(os.getenv("OCTOGEN_DATA_DIR", Path.cwd()))
-    
+
     tracker_file = data_dir / "octogen_regular_last.json"
-    
+
     # First check for recent generation to prevent duplicates (applies to both modes)
     if tracker_file.exists():
         try:
             with open(tracker_file, 'r') as f:
                 data = json.load(f)
-                last_generated_str = data.get("last_generated")
-                
-                if last_generated_str:
-                    last_generated = _parse_iso_timestamp(last_generated_str)
-                    now = datetime.now(timezone.utc)
-                    
-                    # Don't regenerate if we generated within the last hour
-                    time_since_last = (now - last_generated).total_seconds() / 3600  # hours
-                    
-                    if time_since_last < 1.0:
-                        return False, f"Already generated regular playlists {time_since_last:.1f} hours ago"
+
+            last_generated_str = data.get("last_generated")
+
+            if last_generated_str:
+                last_generated = _parse_iso_timestamp(last_generated_str)
+                now = datetime.now(timezone.utc)
+
+                # Don't regenerate if we generated within the last hour
+                time_since_last = (now - last_generated).total_seconds() / 3600  # hours
+
+                if time_since_last < 1.0:
+                    return False, f"Already generated regular playlists {time_since_last:.1f} hours ago"
+
         except Exception as e:
             logger.warning(f"Error reading regular playlist tracker: {e}")
-    
+
     # Check if we're in scheduled mode
     if not is_scheduled_mode():
         return True, "Running in manual mode - proceeding with generation"
-    
+
     # In scheduled mode, we should generate (scheduler already handles timing)
     return True, "At scheduled generation time for regular playlists"
 
 
 def record_regular_playlist_generation(data_dir: Optional[Path] = None) -> None:
     """Record that regular playlists were generated.
-    
+
     Args:
         data_dir: Data directory path
     """
     if data_dir is None:
         data_dir = Path(os.getenv("OCTOGEN_DATA_DIR", Path.cwd()))
-    
+
     tracker_file = data_dir / "octogen_regular_last.json"
-    
+
     try:
         now = datetime.now(timezone.utc)
-        
+
         data = {
             "last_generated": now.isoformat(),
             "type": "regular_playlists"
         }
-        
+
         with open(tracker_file, 'w') as f:
             json.dump(data, f, indent=2)
-            
+
         logger.info(f"✓ Recorded regular playlist generation")
-        
+
     except Exception as e:
         logger.error(f"Error recording regular playlist generation: {e}")
