@@ -1505,6 +1505,11 @@ def run_with_schedule(dry_run: bool = False):
 
 def main() -> None:
     """Main entry point."""
+
+    from octogen.utils.logging_config import setup_logging
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    setup_logging(log_level=log_level)
+
     
     # Initialize metrics if available and enabled
     try:
