@@ -100,6 +100,52 @@ services:
       LLM_SONGS_PER_MIX: ${LLM_SONGS_PER_MIX:-5}
 
       # ============================================================================
+      # OPTIONAL - Monitoring and Metrics
+      # ============================================================================
+      # Enable Prometheus metrics (default: true)
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      
+      # Port for Prometheus metrics HTTP server
+      METRICS_PORT: ${METRICS_PORT:-9090}
+      
+      # Circuit breaker configuration
+      CIRCUIT_BREAKER_THRESHOLD: ${CIRCUIT_BREAKER_THRESHOLD:-5}
+      CIRCUIT_BREAKER_TIMEOUT: ${CIRCUIT_BREAKER_TIMEOUT:-60}
+
+      # ============================================================================
+      # OPTIONAL - Web UI Dashboard
+      # ============================================================================
+      # Enable web-based monitoring dashboard (default: false)
+      WEB_UI_ENABLED: ${WEB_UI_ENABLED:-false}
+      
+      # Port for web UI HTTP server
+      WEB_UI_PORT: ${WEB_UI_PORT:-5000}
+
+      # ============================================================================
+      # OPTIONAL - Batch Processing
+      # ============================================================================
+      # Number of songs to download per batch
+      DOWNLOAD_BATCH_SIZE: ${DOWNLOAD_BATCH_SIZE:-5}
+      
+      # Maximum concurrent downloads
+      DOWNLOAD_CONCURRENCY: ${DOWNLOAD_CONCURRENCY:-3}
+
+      # ============================================================================
+      # OPTIONAL - Logging Configuration
+      # ============================================================================
+      # Log output format: text or json
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+      
+      # Show progress indicators in terminal
+      SHOW_PROGRESS: ${SHOW_PROGRESS:-true}
+
+      # ============================================================================
+      # OPTIONAL - Playlist Templates
+      # ============================================================================
+      # Path to custom playlist templates YAML file
+      PLAYLIST_TEMPLATES_FILE: ${PLAYLIST_TEMPLATES_FILE:-/config/playlist_templates.yaml}
+
+      # ============================================================================
       # OPTIONAL - System Configuration
       # ============================================================================
       # Log level: DEBUG, INFO, WARNING, ERROR
@@ -108,6 +154,13 @@ services:
       # Data directory inside container - must match volume mount path
       # Change only if you also modify the volume mount
       OCTOGEN_DATA_DIR: ${OCTOGEN_DATA_DIR:-/data}
+
+    # Expose ports for monitoring (optional)
+    ports:
+      # Prometheus metrics (if METRICS_ENABLED=true)
+      - "9090:9090"
+      # Web UI dashboard (if WEB_UI_ENABLED=true)
+      - "5000:5000"
 
 volumes:
   octogen-data:
