@@ -29,14 +29,24 @@ Built with AI assistance. Contributions and pull requests welcome!
 
 OctoGen can optionally integrate with **AudioMuse-AI** for enhanced sonic analysis:
 
-- **Default Mode**: 30 songs from LLM (current behavior)
-- **Hybrid Mode**: 25 songs from AudioMuse-AI + 5 songs from LLM
+- **Default Mode**: All playlists use LLM (current behavior)
+- **Hybrid Mode**: Most playlists use 25 AudioMuse-AI + 5 LLM songs
 
 Enable hybrid mode by setting:
 ```bash
 AUDIOMUSE_ENABLED=true
 AUDIOMUSE_URL=http://localhost:8000
 ```
+
+**Hybrid playlists** (when AudioMuse enabled):
+- **Daily Mix 1-6**: Genre-based mixes (25 AudioMuse + 5 LLM)
+- **Chill Vibes**: Relaxing tracks (25 AudioMuse + 5 LLM)
+- **Workout Energy**: High-energy music (25 AudioMuse + 5 LLM)
+- **Focus Flow**: Ambient/instrumental (25 AudioMuse + 5 LLM)
+- **Drive Time**: Upbeat driving music (25 AudioMuse + 5 LLM)
+
+**LLM-only playlists** (always):
+- **Discovery Weekly**: New discoveries (50 LLM songs)
 
 This combines:
 - **AudioMuse-AI**: Sonic similarity, mood analysis, audio feature matching

@@ -627,8 +627,10 @@ AudioMuse-AI provides sonic analysis-based playlist generation using audio featu
 AUDIOMUSE_ENABLED=true
 ```
 **Notes**:
-- When enabled, Daily Mix 1-6 use hybrid mode (25 AudioMuse + 5 LLM songs)
-- When disabled, OctoGen uses LLM-only mode (30 LLM songs per mix)
+- When enabled, 10 playlists use hybrid mode (25 AudioMuse + 5 LLM songs)
+- Hybrid playlists: Daily Mix 1-6, Chill Vibes, Workout Energy, Focus Flow, Drive Time
+- Discovery Weekly remains LLM-only (50 songs) for new discoveries
+- When disabled, all playlists use LLM-only mode
 - Requires AudioMuse-AI server to be running and accessible
 - Falls back to LLM-only if AudioMuse-AI is unreachable
 
@@ -698,7 +700,7 @@ AUDIOMUSE_AI_API_KEY=your_gemini_api_key_here
 ---
 
 ### AUDIOMUSE_SONGS_PER_MIX
-**Description**: Number of songs from AudioMuse-AI per Daily Mix  
+**Description**: Number of songs from AudioMuse-AI per hybrid playlist  
 **Type**: Integer  
 **Default**: `25`  
 **Range**: 1-30  
@@ -707,14 +709,16 @@ AUDIOMUSE_AI_API_KEY=your_gemini_api_key_here
 AUDIOMUSE_SONGS_PER_MIX=25
 ```
 **Notes**:
-- Total songs per mix is always 30
+- Total songs per hybrid playlist is always 30
 - Remainder filled by LLM (see `LLM_SONGS_PER_MIX`)
+- Applies to: Daily Mix 1-6, Chill Vibes, Workout Energy, Focus Flow, Drive Time
+- Discovery Weekly always uses 50 LLM-only songs
 - Example: 25 AudioMuse + 5 LLM = 30 total
 
 ---
 
 ### LLM_SONGS_PER_MIX
-**Description**: Number of songs from LLM when AudioMuse is enabled  
+**Description**: Number of songs from LLM per hybrid playlist  
 **Type**: Integer  
 **Default**: `5`  
 **Range**: 0-30  
@@ -724,7 +728,9 @@ LLM_SONGS_PER_MIX=5
 ```
 **Notes**:
 - Only applies when `AUDIOMUSE_ENABLED=true`
-- When AudioMuse disabled, all 30 songs come from LLM
+- When AudioMuse disabled, LLM provides all 30 songs
+- Applies to: Daily Mix 1-6, Chill Vibes, Workout Energy, Focus Flow, Drive Time
+- Discovery Weekly always uses 50 LLM-only songs regardless
 - Ensure `AUDIOMUSE_SONGS_PER_MIX + LLM_SONGS_PER_MIX ≤ 30`
 
 ---
@@ -752,6 +758,8 @@ LLM_SONGS_PER_MIX=5
 - **AudioMuse-AI**: Sonic similarity, mood analysis, audio features
 - **LLM**: Creative variety, metadata-based recommendations
 - **Combined**: Best of both approaches for diverse, high-quality playlists
+- **10 hybrid playlists**: Daily Mix 1-6, Chill Vibes, Workout Energy, Focus Flow, Drive Time
+- **Discovery Weekly**: Remains LLM-only (50 songs) for fresh discoveries
 
 ---
 

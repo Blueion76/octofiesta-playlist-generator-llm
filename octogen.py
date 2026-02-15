@@ -2257,26 +2257,32 @@ CRITICAL RULES:
                     sys.exit(1)
     
                 if all_playlists:
-                    # Handle Daily Mixes with hybrid approach if AudioMuse is enabled
+                    # Handle hybrid playlists if AudioMuse is enabled
                     if self.audiomuse_client:
                         logger.info("=" * 70)
-                        logger.info("GENERATING HYBRID DAILY MIXES (AudioMuse + LLM)")
+                        logger.info("GENERATING HYBRID PLAYLISTS (AudioMuse + LLM)")
                         logger.info("=" * 70)
                         
-                        # Define Daily Mix configurations
-                        daily_mix_configs = [
-                            {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else "rock", "characteristics": "energetic"},
-                            {"name": "Daily Mix 2", "genre": top_genres[1] if len(top_genres) > 1 else "pop", "characteristics": "catchy upbeat"},
-                            {"name": "Daily Mix 3", "genre": top_genres[2] if len(top_genres) > 2 else "electronic", "characteristics": "danceable rhythmic"},
-                            {"name": "Daily Mix 4", "genre": top_genres[3] if len(top_genres) > 3 else "hip-hop", "characteristics": "rhythmic bass-heavy"},
-                            {"name": "Daily Mix 5", "genre": top_genres[4] if len(top_genres) > 4 else "indie", "characteristics": "alternative atmospheric"},
-                            {"name": "Daily Mix 6", "genre": top_genres[5] if len(top_genres) > 5 else "jazz", "characteristics": "smooth melodic"}
+                        # Define all hybrid playlist configurations (everything except Discovery Weekly)
+                        hybrid_playlist_configs = [
+                            # Daily Mixes
+                            {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else "rock", "characteristics": "energetic", "num": 1},
+                            {"name": "Daily Mix 2", "genre": top_genres[1] if len(top_genres) > 1 else "pop", "characteristics": "catchy upbeat", "num": 2},
+                            {"name": "Daily Mix 3", "genre": top_genres[2] if len(top_genres) > 2 else "electronic", "characteristics": "danceable rhythmic", "num": 3},
+                            {"name": "Daily Mix 4", "genre": top_genres[3] if len(top_genres) > 3 else "hip-hop", "characteristics": "rhythmic bass-heavy", "num": 4},
+                            {"name": "Daily Mix 5", "genre": top_genres[4] if len(top_genres) > 4 else "indie", "characteristics": "alternative atmospheric", "num": 5},
+                            {"name": "Daily Mix 6", "genre": top_genres[5] if len(top_genres) > 5 else "jazz", "characteristics": "smooth melodic", "num": 6},
+                            # Mood/Activity playlists
+                            {"name": "Chill Vibes", "genre": "ambient", "characteristics": "relaxing calm peaceful", "num": 8},
+                            {"name": "Workout Energy", "genre": "high-energy", "characteristics": "upbeat motivating intense", "num": 9},
+                            {"name": "Focus Flow", "genre": "instrumental", "characteristics": "ambient atmospheric concentration", "num": 10},
+                            {"name": "Drive Time", "genre": "upbeat", "characteristics": "driving energetic feel-good", "num": 11}
                         ]
                         
-                        # Generate and create hybrid Daily Mixes
-                        for i, mix_config in enumerate(daily_mix_configs, 1):
+                        # Generate and create hybrid playlists
+                        for mix_config in hybrid_playlist_configs:
                             hybrid_songs = self._generate_hybrid_daily_mix(
-                                mix_number=i,
+                                mix_number=mix_config["num"],
                                 genre_focus=mix_config["genre"],
                                 characteristics=mix_config["characteristics"],
                                 top_artists=top_artists,
@@ -2288,10 +2294,14 @@ CRITICAL RULES:
                             if hybrid_songs:
                                 self.create_playlist(mix_config["name"], hybrid_songs, max_songs=30)
                         
-                        # Create non-Daily Mix playlists from AI response
-                        for playlist_name, songs in all_playlists.items():
-                            if "Daily Mix" not in playlist_name and isinstance(songs, list) and songs:
-                                self.create_playlist(playlist_name, songs, max_songs=100)
+                        # Create Discovery Weekly from AI response (LLM-only for new discoveries)
+                        if "Discovery Weekly" in all_playlists:
+                            discovery_songs = all_playlists["Discovery Weekly"]
+                            if isinstance(discovery_songs, list) and discovery_songs:
+                                logger.info("=" * 70)
+                                logger.info("DISCOVERY WEEKLY (LLM-only for new discoveries)")
+                                logger.info("=" * 70)
+                                self.create_playlist("Discovery Weekly", discovery_songs, max_songs=50)
                     else:
                         # Original behavior: use all AI-generated playlists
                         for playlist_name, songs in all_playlists.items():
