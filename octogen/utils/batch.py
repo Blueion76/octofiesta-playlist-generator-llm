@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import List, Dict, Callable, Any, Optional
+from typing import List, Dict, Callable, Any, Optional, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class BatchProcessor:
         process_func: Callable,
         *args,
         **kwargs
-    ) -> List[tuple[bool, Any]]:
+    ) -> List[Tuple[bool, Any]]:
         """Process items in batches with concurrency control.
         
         Args:
@@ -83,7 +83,7 @@ def process_in_batches(
     process_func: Callable,
     batch_size: int = 5,
     concurrency: int = 3
-) -> List[tuple[bool, Any]]:
+) -> List[Tuple[bool, Any]]:
     """Convenience function to process items in batches synchronously.
     
     Args:

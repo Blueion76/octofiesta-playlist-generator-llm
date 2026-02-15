@@ -9,7 +9,7 @@ import aiohttp
 import difflib
 from collections import Counter
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from urllib.parse import urlencode
 
 from octogen.utils.auth import subsonic_auth_params
@@ -645,7 +645,7 @@ class OctoFiestaTrigger:
         except Exception:
             return None
 
-    def search_and_trigger_download(self, artist: str, title: str) -> tuple[bool, str]:
+    def search_and_trigger_download(self, artist: str, title: str) -> Tuple[bool, str]:
         """Search and trigger download.
         
         Args:
