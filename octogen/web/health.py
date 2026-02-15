@@ -11,6 +11,27 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 
+def write_health_status(data_dir: Path, status: str, message: str = "") -> None:
+    """Write health status for monitoring.
+    
+    Args:
+        data_dir: Data directory where health.json should be written
+        status: Status string (e.g., 'healthy', 'running', 'scheduled')
+        message: Optional message
+    """
+    health_file = data_dir / "health.json"
+    try:
+        with open(health_file, 'w') as f:
+            json.dump({
+                "status": status,
+                "message": message,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pid": os.getpid()
+            }, f, indent=2)
+    except Exception as e:
+        logger.warning("Could not write health status: %s", str(e))
+
+
 def check_navidrome() -> Dict[str, Any]:
     """Check Navidrome connection and get library stats.
     

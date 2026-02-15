@@ -80,5 +80,5 @@ VOLUME ["/data", "/config"]
 #     chown -R octogen:octogen /app /data
 # USER octogen
 
-# Default command
-CMD ["python", "-u", "octogen.py"]
+# Default command - use modular entry point
+CMD ["python", "-u", "-m", "octogen.main"]
