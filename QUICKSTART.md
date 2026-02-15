@@ -28,7 +28,7 @@ AI_BACKEND=gemini
 LOG_LEVEL=INFO
 
 # Scheduling
-SCHEDULE_CRON=0 6 * * *
+SCHEDULE_CRON=0 2 * * *
 TZ=America/Chicago
 EOF
 ```
@@ -54,7 +54,7 @@ docker logs -f octogen
 
 # You'll see scheduling info:
 # 🕐 OCTOGEN SCHEDULER
-# Schedule: 0 6 * * *
+# Schedule: 0 2 * * *
 # Timezone: America/Chicago
 # 📅 Next scheduled run: 2026-02-11 06:00:00
 # ⏰ Next run in 3.5 hours...
@@ -89,7 +89,7 @@ services:
       AI_API_KEY: ${GEMINI_API_KEY}
 
       # Scheduling
-      SCHEDULE_CRON: "0 6 * * *"  # Daily at 6 AM
+      SCHEDULE_CRON: "0 2 * * *"  # Daily at 2 AM
       TZ: America/Chicago
 
       # Optional
@@ -145,8 +145,8 @@ NAVIDROME_PASSWORD=secret123
 OCTOFIESTA_URL=http://192.168.1.100:8080
 AI_API_KEY=AIzaSyABC123...
 
-# Run daily at 6 AM
-SCHEDULE_CRON=0 6 * * *
+# Run daily at 2 AM
+SCHEDULE_CRON=0 2 * * *
 TZ=America/Chicago
 ```
 
@@ -177,7 +177,7 @@ AI_MODEL=llama-3.3-70b-versatile
 AI_API_KEY=gsk_abc123...
 
 # Daily schedule
-SCHEDULE_CRON=0 6 * * *
+SCHEDULE_CRON=0 2 * * *
 TZ=America/Los_Angeles
 ```
 
@@ -212,8 +212,8 @@ LASTFM_ENABLED=true
 LASTFM_API_KEY=your_lastfm_key
 LASTFM_USERNAME=your_lastfm_username
 
-# Daily at 6 AM
-SCHEDULE_CRON=0 6 * * *
+# Daily at 2 AM
+SCHEDULE_CRON=0 2 * * *
 TZ=Europe/London
 ```
 
@@ -252,7 +252,7 @@ OctoGen now has **built-in cron scheduling** - no external cron daemon needed!
 
 | Schedule | Cron Expression | Description |
 |----------|----------------|-------------|
-| Daily at 6 AM | `0 6 * * *` | Once per day |
+| Daily at 2 AM | `0 2 * * *` | Once per day |
 | Twice daily | `0 */12 * * *` | Every 12 hours |
 | Every 6 hours | `0 */6 * * *` | 4 times per day |
 | Weekly (Sunday 3 AM) | `0 3 * * 0` | Once per week |
@@ -285,7 +285,7 @@ TZ=Australia/Sydney     # Australia
 ```
 🕐 OCTOGEN SCHEDULER
 ══════════════════════════════════════════════════════════════════════
-Schedule: 0 6 * * *
+Schedule: 0 2 * * *
 Timezone: America/Chicago
 ══════════════════════════════════════════════════════════════════════
 📅 Next scheduled run: 2026-02-11 06:00:00

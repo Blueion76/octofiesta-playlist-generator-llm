@@ -62,8 +62,9 @@ OCTOFIESTA_URL=http://octo-fiesta:8080
 ---
 
 ### AI_API_KEY
-**Description**: API key for your AI provider  
-**Format**: String (provider-specific)  
+**Description**: API key for your AI provider (LLM-based recommendations)  
+**Type**: String  
+**Required**: No (optional if AudioMuse-AI, Last.fm, or ListenBrainz is enabled)  
 **Examples**:
 ```bash
 # Gemini
@@ -83,6 +84,11 @@ AI_API_KEY=ollama
 - **Groq**: https://console.groq.com (free tier)
 - **OpenAI**: https://platform.openai.com/api-keys
 - **Ollama**: Use `ollama` as the key
+
+**Notes**:
+- **Optional**: Not required if you configure AudioMuse-AI, Last.fm, or ListenBrainz
+- At least one music source must be configured (AI, AudioMuse, Last.fm, or ListenBrainz)
+- Keep API keys secure and never commit to version control
 
 ---
 
@@ -189,10 +195,10 @@ AI_MAX_OUTPUT_TOKENS=65535
 **Format**: Standard cron expression  
 **Examples**:
 ```bash
-# Daily at 6 AM
+# Daily at 2 AM
 SCHEDULE_CRON=0 6 * * *
 
-# Twice daily (6 AM and 6 PM)
+# Twice daily (2 AM and 6 PM)
 SCHEDULE_CRON=0 6,18 * * *
 
 # Every 12 hours
@@ -287,12 +293,12 @@ TZ=UTC                   # Universal (default)
 - Docker uses container timezone, not host timezone
 - Visible in logs: "Timezone: America/Chicago"
 
-**Example - Schedule 6 AM Local Time**:
+**Example - Schedule 2 AM Local Time**:
 ```bash
-# Wrong (runs at 6 AM UTC, not your local time)
+# Wrong (runs at 2 AM UTC, not your local time)
 SCHEDULE_CRON=0 6 * * *
 
-# Right (runs at 6 AM Chicago time)
+# Right (runs at 2 AM Chicago time)
 SCHEDULE_CRON=0 6 * * *
 TZ=America/Chicago
 ```
@@ -530,7 +536,7 @@ NAVIDROME_PASSWORD=secret123
 OCTOFIESTA_URL=http://192.168.1.100:8080
 AI_API_KEY=AIzaSyABC123...
 
-# Run daily at 6 AM local time
+# Run daily at 2 AM local time
 SCHEDULE_CRON=0 6 * * *
 TZ=America/Chicago
 ```
@@ -808,7 +814,7 @@ If same variable set multiple ways:
 ### Scheduling Best Practices
 - ✅ **DO**: Use `SCHEDULE_CRON` with `TZ` for automatic updates
 - ✅ **DO**: Set `restart: unless-stopped` in Docker Compose
-- ✅ **DO**: Run daily during off-peak hours (3-6 AM)
+- ✅ **DO**: Run daily during off-peak hours (2-2 AM)
 - ✅ **DO**: Monitor logs after first scheduled run
 - ❌ **DON'T**: Schedule too frequently (< 6 hours)
 - ❌ **DON'T**: Forget to set timezone (defaults to UTC!)
@@ -835,8 +841,8 @@ docker logs octogen | grep "Timezone:"
 
 | Category | Count | Variables |
 |----------|-------|-----------|
-| **Required** | 5 | NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASSWORD, OCTOFIESTA_URL, AI_API_KEY |
-| **AI Config** | 5 | AI_MODEL, AI_BACKEND, AI_BASE_URL, AI_MAX_CONTEXT_SONGS, AI_MAX_OUTPUT_TOKENS |
+| **Required** | 4 | NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASSWORD, OCTOFIESTA_URL |
+| **AI Config** | 6 | AI_API_KEY (optional), AI_MODEL, AI_BACKEND, AI_BASE_URL, AI_MAX_CONTEXT_SONGS, AI_MAX_OUTPUT_TOKENS |
 | **Scheduling** | 3 | SCHEDULE_CRON, TZ, MIN_RUN_INTERVAL_HOURS |
 | **Last.fm** | 3 | LASTFM_ENABLED, LASTFM_API_KEY, LASTFM_USERNAME |
 | **ListenBrainz** | 3 | LISTENBRAINZ_ENABLED, LISTENBRAINZ_USERNAME, LISTENBRAINZ_TOKEN |
@@ -844,6 +850,8 @@ docker logs octogen | grep "Timezone:"
 | **Performance** | 5 | PERF_ALBUM_BATCH_SIZE, PERF_MAX_ALBUMS_SCAN, PERF_SCAN_TIMEOUT, PERF_DOWNLOAD_DELAY, PERF_POST_SCAN_DELAY |
 | **System** | 2 | LOG_LEVEL, OCTOGEN_DATA_DIR |
 | **Total** | **33** | |
+
+**Note**: At least one music source must be configured: AI_API_KEY, AudioMuse-AI, Last.fm, or ListenBrainz.
 
 ---
 

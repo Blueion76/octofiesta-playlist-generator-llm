@@ -1525,19 +1525,25 @@ class OctoGenEngine:
             dry_run=dry_run
         )
 
-        # Initialize AI engine
-        max_context = int(self.config.get("ai", {}).get("max_context_songs", 500))
-        max_output = int(self.config.get("ai", {}).get("max_output_tokens", 65535))
-        backend = self.config.get("ai", {}).get("backend", "gemini")
+        # Initialize AI engine (optional if other services are configured)
+        self.ai = None
+        if self.config["ai"]["api_key"]:
+            max_context = int(self.config.get("ai", {}).get("max_context_songs", 500))
+            max_output = int(self.config.get("ai", {}).get("max_output_tokens", 65535))
+            backend = self.config.get("ai", {}).get("backend", "gemini")
 
-        self.ai = AIRecommendationEngine(
-            api_key=self.config["ai"]["api_key"],
-            model=self.config["ai"]["model"],
-            backend=backend,
-            base_url=self.config.get("ai", {}).get("base_url"),
-            max_context_songs=max_context,
-            max_output_tokens=max_output,
-        )
+            self.ai = AIRecommendationEngine(
+                api_key=self.config["ai"]["api_key"],
+                model=self.config["ai"]["model"],
+                backend=backend,
+                base_url=self.config.get("ai", {}).get("base_url"),
+                max_context_songs=max_context,
+                max_output_tokens=max_output,
+            )
+            logger.info("✓ AI engine initialized")
+        else:
+            logger.info("ℹ️  AI engine not configured (using alternative music sources)")
+
 
         # Optional services
         self.lastfm: Optional[LastFMAPI] = None
@@ -1595,13 +1601,12 @@ class OctoGenEngine:
         """Load all configuration from environment variables"""
         logger.info("Loading configuration from environment variables...")
 
-        # Check required variables
+        # Check required variables (except AI_API_KEY which is now optional)
         required_vars = [
             "NAVIDROME_URL",
             "NAVIDROME_USER",
             "NAVIDROME_PASSWORD",
-            "OCTOFIESTA_URL",
-            "AI_API_KEY"
+            "OCTOFIESTA_URL"
         ]
 
         missing = [var for var in required_vars if not os.getenv(var)]
@@ -1613,7 +1618,6 @@ class OctoGenEngine:
             logger.error("  NAVIDROME_USER      - Navidrome username")
             logger.error("  NAVIDROME_PASSWORD  - Navidrome password")
             logger.error("  OCTOFIESTA_URL      - Octo-Fiesta server URL")
-            logger.error("  AI_API_KEY          - Gemini/OpenAI API key")
             logger.error("")
             logger.error("See ENV_VARS.md for complete reference")
             sys.exit(1)
@@ -1628,7 +1632,7 @@ class OctoGenEngine:
                 "url": os.getenv("OCTOFIESTA_URL")
             },
             "ai": {
-                "api_key": os.getenv("AI_API_KEY"),
+                "api_key": os.getenv("AI_API_KEY", ""),
                 "model": os.getenv("AI_MODEL", "gemini-2.5-flash"),
                 "backend": os.getenv("AI_BACKEND", "gemini"),
                 "base_url": os.getenv("AI_BASE_URL"),
@@ -1691,6 +1695,35 @@ class OctoGenEngine:
         """Validate environment configuration"""
         errors = []
         
+        # Check if at least one music source is configured
+        has_ai = bool(self.config["ai"]["api_key"])
+        has_audiomuse = self.config.get("audiomuse", {}).get("enabled", False)
+        has_lastfm = self.config.get("lastfm", {}).get("enabled", False)
+        has_listenbrainz = self.config.get("listenbrainz", {}).get("enabled", False)
+        
+        if not (has_ai or has_audiomuse or has_lastfm or has_listenbrainz):
+            logger.error("=" * 70)
+            logger.error("❌ No music source configured!")
+            logger.error("❌ OctoGen requires at least one of:")
+            logger.error("   1. AI_API_KEY (for LLM-based recommendations)")
+            logger.error("   2. AUDIOMUSE_ENABLED=true (for AudioMuse-AI sonic analysis)")
+            logger.error("   3. LASTFM_ENABLED=true (for Last.fm recommendations)")
+            logger.error("   4. LISTENBRAINZ_ENABLED=true (for ListenBrainz recommendations)")
+            logger.error("=" * 70)
+            sys.exit(1)
+        
+        # Log available music sources
+        sources = []
+        if has_ai:
+            sources.append("LLM")
+        if has_audiomuse:
+            sources.append("AudioMuse-AI")
+        if has_lastfm:
+            sources.append("Last.fm")
+        if has_listenbrainz:
+            sources.append("ListenBrainz")
+        logger.info("✓ Music sources: %s", ", ".join(sources))
+        
         # Validate URLs
         for name, url in [
             ("Navidrome", self.config["navidrome"]["url"]),
@@ -1703,22 +1736,22 @@ class OctoGenEngine:
             elif url.endswith("/"):
                 logger.warning("%s URL ends with '/'. This will be stripped automatically.", name)
         
-        # Validate AI API key
-        if not self.config["ai"]["api_key"]:
-            errors.append("AI_API_KEY is empty")
-        elif self.config["ai"]["api_key"] in ["your-api-key-here", "changeme", "INSERT_KEY_HERE"]:
-            errors.append("AI_API_KEY appears to be a placeholder - please set a real API key")
-        elif len(self.config["ai"]["api_key"]) < 20:
-            errors.append("AI_API_KEY seems too short - verify it's a valid key")
+        # Validate AI API key only if AI is being used
+        if has_ai:
+            if self.config["ai"]["api_key"] in ["your-api-key-here", "changeme", "INSERT_KEY_HERE"]:
+                errors.append("AI_API_KEY appears to be a placeholder - please set a real API key")
+            elif len(self.config["ai"]["api_key"]) < 20:
+                errors.append("AI_API_KEY seems too short - verify it's a valid key")
         
-        # Validate AI model for backend
-        backend = self.config["ai"]["backend"]
-        model = self.config["ai"]["model"]
-        
-        if backend == "gemini" and not model.startswith("gemini"):
-            logger.warning("Backend is 'gemini' but model is '%s' - this may cause errors", model)
-        elif backend == "openai" and model.startswith("gemini"):
-            logger.warning("Backend is 'openai' but model is '%s' - this may cause errors", model)
+        # Validate AI model for backend (only if AI is configured)
+        if has_ai:
+            backend = self.config["ai"]["backend"]
+            model = self.config["ai"]["model"]
+            
+            if backend == "gemini" and not model.startswith("gemini"):
+                logger.warning("Backend is 'gemini' but model is '%s' - this may cause errors", model)
+            elif backend == "openai" and model.startswith("gemini"):
+                logger.warning("Backend is 'openai' but model is '%s' - this may cause errors", model)
         
         # Validate optional services
         if self.config.get("lastfm", {}).get("enabled", False):
@@ -2230,11 +2263,11 @@ CRITICAL RULES:
             favorited_songs = self.nd.get_starred_songs()
     
             if not favorited_songs:
-                logger.error("No starred songs found! Please star some songs in Navidrome first.")
-                logger.info("Attempting Last.fm and ListenBrainz recommendations only...")
-                # Skip AI generation but continue with external services
-                all_playlists = {}
-            else:
+                logger.warning("No starred songs found - library analysis limited")
+    
+            # Generate AI playlists (only if AI is configured)
+            all_playlists = {}
+            if self.ai and favorited_songs:
                 # Continue with normal AI generation
                 top_artists = self.nd.get_top_artists(100)
                 top_genres = self.nd.get_top_genres(20)
@@ -2259,15 +2292,30 @@ CRITICAL RULES:
                 )
     
                 self.stats["ai_calls"] = self.ai.call_count
+            elif not self.ai:
+                logger.info("=" * 70)
+                logger.info("AI not configured - using alternative music sources only")
+                logger.info("=" * 70)
+                # Set required variables for alternative sources
+                top_artists = self.nd.get_top_artists(100) if favorited_songs else []
+                top_genres = self.nd.get_top_genres(20) if favorited_songs else []
+                low_rated_songs = self.nd.get_low_rated_songs() if favorited_songs else []
+            else:
+                logger.info("=" * 70)
+                logger.info("No starred songs - skipping AI generation")
+                logger.info("=" * 70)
+                top_artists = []
+                top_genres = []
+                low_rated_songs = []
     
-                # If AI failed and no external services, exit with error
-                if not all_playlists and not self.lastfm and not self.listenbrainz:
-                    logger.error("=" * 70)
-                    logger.error("❌ AI generation failed and no external services configured")
-                    logger.error("❌ Nothing to process - exiting with error")
-                    logger.error("=" * 70)
-                    write_health_status("unhealthy", "AI rate limit hit, no fallback available")
-                    sys.exit(1)
+            # Check if we have any music sources available
+            if not all_playlists and not self.audiomuse_client and not self.lastfm and not self.listenbrainz:
+                logger.error("=" * 70)
+                logger.error("❌ No playlists generated and no alternative services configured")
+                logger.error("❌ Nothing to process - exiting with error")
+                logger.error("=" * 70)
+                write_health_status("unhealthy", "No music sources available")
+                sys.exit(1)
     
                 if all_playlists:
                     # Handle hybrid playlists if AudioMuse is enabled

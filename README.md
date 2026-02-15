@@ -70,9 +70,13 @@ See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 ### Prerequisites
 - **Navidrome** server running
 - **Octo-Fiesta** configured for downloads
-- **AI API key** (Gemini recommended - free tier available)
+- **At least one music source**:
+  - AI API key (Gemini recommended - free tier available), OR
+  - AudioMuse-AI configured, OR
+  - Last.fm enabled, OR
+  - ListenBrainz enabled
 
-### 1. Get Gemini API Key (Free)
+### 1. Get API Key (Optional - if using LLM)
 Visit: [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 
 ### 2. Create Configuration
@@ -93,7 +97,7 @@ AI_BACKEND=gemini
 LOG_LEVEL=INFO
 
 # Scheduling 
-SCHEDULE_CRON=0 6 * * *
+SCHEDULE_CRON=0 2 * * *
 TZ=America/Chicago
 EOF
 ```
@@ -119,7 +123,7 @@ docker logs -f octogen
 ### 4. Check Your Navidrome
 Open Navidrome and find your new playlists! 🎉
 
-**Playlists update automatically at 6 AM daily!**
+**Playlists update automatically at 2 AM daily!**
 
 ---
 
@@ -144,7 +148,7 @@ services:
       AI_API_KEY: ${GEMINI_API_KEY}
 
       # Scheduling 
-      SCHEDULE_CRON: "0 6 * * *"  # Daily at 6 AM
+      SCHEDULE_CRON: "0 2 * * *"  # Daily at 2 AM
       TZ: America/Chicago
 
       # Optional
@@ -228,7 +232,12 @@ LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
 | `NAVIDROME_USER` | Navidrome username | `admin` |
 | `NAVIDROME_PASSWORD` | Navidrome password | `your_password` |
 | `OCTOFIESTA_URL` | Octo-Fiesta server URL | `http://192.168.1.100:8080` |
-| `AI_API_KEY` | AI provider API key | `your_llm_api_key` |
+
+**Note**: At least one music source must also be configured:
+- `AI_API_KEY` (for LLM-based playlists), OR
+- `AUDIOMUSE_ENABLED=true` (for AudioMuse-AI sonic analysis), OR  
+- `LASTFM_ENABLED=true` (for Last.fm recommendations), OR
+- `LISTENBRAINZ_ENABLED=true` (for ListenBrainz recommendations)
 
 ### Optional Configuration
 
@@ -237,7 +246,7 @@ LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
 | `AI_MODEL` | `gemini-2.5-flash` | AI model to use |
 | `AI_BACKEND` | `gemini` | Backend: `gemini` or `openai` |
 | `AI_BASE_URL` | (none) | Custom API endpoint |
-| `SCHEDULE_CRON` | (none) | Cron schedule (e.g., `0 6 * * *`) |
+| `SCHEDULE_CRON` | (none) | Cron schedule (e.g., `0 2 * * *`) |
 | `TZ` | `UTC` | Timezone (e.g., `America/Chicago`) |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
@@ -298,7 +307,7 @@ OctoGen now includes **built-in cron scheduling** - no external cron daemon or s
 Just add these two environment variables:
 
 ```bash
-SCHEDULE_CRON=0 6 * * *    # Daily at 6 AM
+SCHEDULE_CRON=0 2 * * *    # Daily at 2 AM
 TZ=America/Chicago         # Your timezone
 ```
 
@@ -307,7 +316,7 @@ The container stays running and automatically executes on schedule. You'll see c
 ```
 🕐 OCTOGEN SCHEDULER
 ══════════════════════════════════════════════════════════════════════
-Schedule: 0 6 * * *
+Schedule: 0 2 * * *
 Timezone: America/Chicago
 ══════════════════════════════════════════════════════════════════════
 📅 Next scheduled run: 2026-02-11 06:00:00
@@ -318,7 +327,7 @@ Timezone: America/Chicago
 
 | Schedule | Cron Expression | Description |
 |----------|----------------|-------------|
-| Daily at 6 AM | `0 6 * * *` | Once per day |
+| Daily at 2 AM | `0 2 * * *` | Once per day |
 | Twice daily | `0 */12 * * *` | Every 12 hours |
 | Every 6 hours | `0 */6 * * *` | 4 times per day |
 | Weekly (Sunday 3 AM) | `0 3 * * 0` | Once per week |
@@ -377,7 +386,7 @@ kind: CronJob
 metadata:
   name: octogen
 spec:
-  schedule: "0 6 * * *"
+  schedule: "0 2 * * *"
   timeZone: "America/Chicago"  # Kubernetes 1.25+
   jobTemplate:
     spec:
