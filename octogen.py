@@ -92,6 +92,7 @@ logger = logging.getLogger(__name__)
 # Constants
 LOW_RATING_MIN = 1
 LOW_RATING_MAX = 2
+COOLDOWN_EXIT_DELAY_SECONDS = 60  # Sleep duration before exit in manual mode to prevent rapid restarts
 
 # Default genres for Daily Mixes when library genres are insufficient
 DEFAULT_DAILY_MIX_GENRES = ["rock", "pop", "electronic", "hip-hop", "indie", "jazz"]
@@ -2568,8 +2569,8 @@ def run_with_schedule(dry_run: bool = False):
         # Check cooldown before running in manual mode
         if not engine._check_run_cooldown():
             write_health_status("skipped", "Cooldown active - skipping run")
-            logger.info("💤 Sleeping 60s before exit to prevent rapid restarts")
-            time.sleep(60)
+            logger.info("💤 Sleeping %ds before exit to prevent rapid restarts", COOLDOWN_EXIT_DELAY_SECONDS)
+            time.sleep(COOLDOWN_EXIT_DELAY_SECONDS)
             sys.exit(0)  # Clean exit - not an error
         
         engine.run()
