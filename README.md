@@ -24,8 +24,30 @@ Built with AI assistance. Contributions and pull requests welcome!
 - **Workout Energy** (30 songs) - High-energy music
 - **Focus Flow** (30 songs) - Ambient/instrumental
 - **Drive Time** (30 songs) - Upbeat driving music
+- **Time-of-Day Playlist** (30 songs) - Mood-matched to current time period
 
-**Total: 11 playlists, 350+ songs automatically curated!**
+**Total: 12 playlists, 380+ songs automatically curated!**
+
+### 🕐 Time-of-Day Playlists
+
+Automatic mood-appropriate playlists that rotate based on time of day:
+
+- **Morning Mix (6 AM - 12 PM)**: Upbeat, energetic, positive vibes
+- **Afternoon Flow (12 PM - 6 PM)**: Balanced, productive, moderate energy
+- **Evening Chill (6 PM - 12 AM)**: Relaxing, wind-down music
+- **Night Vibes (12 AM - 6 AM)**: Ambient, calm, sleep-friendly
+
+**Features**:
+- ✅ Hybrid generation: 25 songs from AudioMuse-AI + 5 from LLM
+- ✅ Auto-rotates when time period changes
+- ✅ Auto-deletes previous period's playlist
+- ✅ Configurable time boundaries
+- ✅ AI prompts enhanced with time-of-day context
+
+Enable with:
+```bash
+TIMEOFDAY_ENABLED=true
+```
 
 ### 🎛️ Hybrid Mode (AudioMuse-AI Integration)
 
@@ -66,11 +88,12 @@ See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 - **Built-in scheduling**: No external cron needed! 🕐
 
 ### 📊 Monitoring & Observability
+- **Web UI dashboard**: Real-time service health monitoring with auto-refresh
 - **Prometheus metrics**: Track playlists, downloads, API calls, latency
-- **Web UI dashboard**: Real-time monitoring with auto-refresh
+- **Swagger API docs**: Interactive REST API documentation at `/apidocs/`
 - **Circuit breaker**: Prevents cascading failures to external APIs
 - **Structured logging**: JSON format support for log aggregation
-- **Health checks**: Monitor service status and performance
+- **Health checks**: Monitor Navidrome, Octo-Fiesta, AI, AudioMuse, Last.fm, ListenBrainz
 
 ### ⚙️ Advanced Features
 - **Modular architecture**: Clean, maintainable codebase
@@ -224,6 +247,65 @@ Run:
 docker-compose up -d
 docker-compose logs -f octogen
 ```
+
+---
+
+## 🌐 Web UI Dashboard
+
+OctoGen includes a real-time monitoring dashboard accessible at `http://localhost:5000`.
+
+### Features
+
+- **Service Health Monitoring**: Real-time status for all connected services
+  - Navidrome (connection, library stats)
+  - Octo-Fiesta (connection status)
+  - AI Engine (backend, model, status)
+  - AudioMuse-AI (enabled/disabled, health)
+  - Last.fm (enabled/disabled, connection)
+  - ListenBrainz (enabled/disabled, connection)
+
+- **System Statistics**:
+  - Playlists created
+  - Songs rated
+  - Low-rated song count
+  - Cache size
+  - Last run timestamp
+  - Next scheduled run
+
+- **REST API**: Full API with Swagger documentation at `/apidocs/`
+  - `GET /api/health` - Overall health status
+  - `GET /api/services` - Detailed service information
+  - `GET /api/stats` - System statistics
+  - `GET /api/status` - Current run status
+
+- **Auto-refresh**: Dashboard updates every 30 seconds
+
+### Configuration
+
+```bash
+# Enable web UI (enabled by default)
+WEB_ENABLED=true
+
+# Configure port
+WEB_PORT=5000
+```
+
+### Docker Setup
+
+Expose port 5000 in your docker-compose.yml:
+
+```yaml
+services:
+  octogen:
+    image: blueion76/octogen:latest
+    ports:
+      - "5000:5000"  # Web UI dashboard
+    environment:
+      WEB_ENABLED: "true"
+      WEB_PORT: "5000"
+```
+
+Access the dashboard at `http://localhost:5000` after starting the container.
 
 ---
 

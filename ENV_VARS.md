@@ -349,35 +349,28 @@ MIN_RUN_INTERVAL_HOURS=4
 
 ---
 
-### EXTERNAL_SERVICES_COOLDOWN_HOURS
-**Description**: Reduced cooldown period when only external services (Last.fm/ListenBrainz) succeed but AI fails  
-**Default**: `1.0`  
+### MIN_RUN_INTERVAL_HOURS
+**Description**: Minimum hours between runs in manual mode (no SCHEDULE_CRON)  
+**Default**: `6`  
 **Range**: `0.5` to `24`  
 **Example**:
 ```bash
-EXTERNAL_SERVICES_COOLDOWN_HOURS=1.0
+MIN_RUN_INTERVAL_HOURS=6
 ```
 **Notes**:
-- Applied when AI/AudioMuse fail but Last.fm or ListenBrainz succeed
-- Allows faster retries when AI hits rate limits but external services work
-- Prevents aggressive retry loops while allowing external services to refresh
-- Set lower (e.g., 0.5h) if you want immediate retries after AI failures
-- Set higher (e.g., 2h) if you want more conservative retry behavior
+- Only applies when SCHEDULE_CRON is not set or set to "manual"
+- In scheduled mode (with SCHEDULE_CRON), uses 90% of cron interval instead
+- All services respect this cooldown period equally
+- Prevents duplicate runs after successful completion
+- System checks `octogen_last_run.json` for last run timestamp
 
-**Smart Cooldown Logic**:
-The system applies different cooldowns based on what succeeded:
-- **Primary services succeeded** (AI or AudioMuse): Uses `MIN_RUN_INTERVAL_HOURS` (default: 6h)
-- **Only external services succeeded**: Uses `EXTERNAL_SERVICES_COOLDOWN_HOURS` (default: 1h)
-- **All services failed**: Uses `EXTERNAL_SERVICES_COOLDOWN_HOURS` (default: 1h)
+**Cooldown Logic**:
+- **Scheduled mode**: Cooldown = 90% of detected cron interval
+- **Manual mode**: Cooldown = MIN_RUN_INTERVAL_HOURS
+- Applied uniformly regardless of which services succeeded/failed
+- Ensures schedule is properly respected
 
-**Example Scenarios**:
-```bash
-# Scenario 1: AI succeeds
-# Last run: 5 hours ago, AI created 11 playlists
-# Result: Blocked (needs 6h cooldown)
-
-# Scenario 2: AI rate limited, externals succeed
-# Last run: 2 hours ago, AI failed (rate_limit), Last.fm succeeded
+---
 # Result: Allowed to run (only needs 1h cooldown)
 
 # Scenario 3: All services failed
@@ -458,34 +451,137 @@ CIRCUIT_BREAKER_TIMEOUT=60
 
 ## 🌐 Web UI Dashboard (Optional)
 
-### WEB_UI_ENABLED
+### WEB_ENABLED
 **Description**: Enable Flask web UI dashboard  
-**Default**: `false`  
-**Options**: `true`, `false`  
+**Default**: `true`  
+**Options**: `true`, `false`, `no`, `off`, `disabled`  
 **Example**:
 ```bash
-WEB_UI_ENABLED=true
+WEB_ENABLED=true
 ```
 **Notes**:
-- Provides web-based monitoring dashboard
-- Shows real-time status, statistics, and service health
+- Provides real-time web-based monitoring dashboard
+- Shows service health status with color-coded indicators
+- Displays system statistics (playlists, cache, ratings)
 - Auto-refreshes every 30 seconds
+- Includes Swagger API documentation at `/apidocs/`
 - Access at `http://localhost:5000` (or configured port)
 
 ---
 
-### WEB_UI_PORT
+### WEB_PORT
 **Description**: Port for web UI HTTP server  
 **Default**: `5000`  
 **Range**: 1024-65535  
 **Example**:
 ```bash
-WEB_UI_PORT=5000
+WEB_PORT=5000
 ```
 **Notes**:
-- Only applies when WEB_UI_ENABLED=true
+- Only applies when WEB_ENABLED=true
 - Must be exposed in Docker: `-p 5000:5000`
-- Dashboard shows: status, stats, health checks, playlists
+- Dashboard includes:
+  - System status and run times
+  - Statistics (playlists created, songs rated, cache size)
+  - Core services (Navidrome, Octo-Fiesta, AI Engine)
+  - Optional services (AudioMuse, Last.fm, ListenBrainz)
+- API endpoints: `/api/health`, `/api/services`, `/api/stats`, `/api/status`
+
+---
+
+## 🕐 Time-of-Day Playlists (Optional)
+
+### TIMEOFDAY_ENABLED
+**Description**: Enable automatic time-period playlist generation  
+**Default**: `true`  
+**Options**: `true`, `false`  
+**Example**:
+```bash
+TIMEOFDAY_ENABLED=true
+```
+**Notes**:
+- Creates mood-appropriate playlists based on time of day
+- Generates one playlist per time period (Morning/Afternoon/Evening/Night)
+- Uses hybrid generation: 25 songs from AudioMuse + 5 from LLM
+- Auto-deletes previous period's playlist when generating new one
+- Playlists: "Morning Mix", "Afternoon Flow", "Evening Chill", "Night Vibes"
+
+---
+
+### TIMEOFDAY_MORNING_START
+**Description**: Hour when morning period starts (24-hour format)  
+**Default**: `6`  
+**Range**: 0-23  
+**Example**:
+```bash
+TIMEOFDAY_MORNING_START=6
+```
+
+### TIMEOFDAY_MORNING_END
+**Description**: Hour when morning period ends  
+**Default**: `12`  
+
+### TIMEOFDAY_AFTERNOON_START
+**Description**: Hour when afternoon period starts  
+**Default**: `12`  
+
+### TIMEOFDAY_AFTERNOON_END
+**Description**: Hour when afternoon period ends  
+**Default**: `18`  
+
+### TIMEOFDAY_EVENING_START
+**Description**: Hour when evening period starts  
+**Default**: `18`  
+
+### TIMEOFDAY_EVENING_END
+**Description**: Hour when evening period ends  
+**Default**: `24`  
+
+### TIMEOFDAY_NIGHT_START
+**Description**: Hour when night period starts  
+**Default**: `0`  
+
+### TIMEOFDAY_NIGHT_END
+**Description**: Hour when night period ends  
+**Default**: `6`  
+
+**Time Period Moods**:
+- **Morning (6-12)**: Upbeat, energetic, positive vibes
+- **Afternoon (12-18)**: Balanced, productive, moderate energy
+- **Evening (18-24)**: Chill, relaxing, wind-down music
+- **Night (0-6)**: Ambient, calm, sleep-friendly
+
+---
+
+### TIMEOFDAY_PLAYLIST_SIZE
+**Description**: Number of songs in each time-period playlist  
+**Default**: `30`  
+**Range**: 10-100  
+**Example**:
+```bash
+TIMEOFDAY_PLAYLIST_SIZE=30
+```
+**Notes**:
+- Default: 25 from AudioMuse + 5 from LLM
+- AudioMuse uses sonic analysis for similarity
+- LLM adds variety and discovery
+- Requires AudioMuse to be enabled for full 30 songs
+
+---
+
+### TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE
+**Description**: Auto-regenerate playlist when time period changes  
+**Default**: `true`  
+**Options**: `true`, `false`  
+**Example**:
+```bash
+TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE=true
+```
+**Notes**:
+- When enabled, creates new playlist when entering a new time period
+- Prevents regenerating if already created for current period
+- Tracked in `octogen_timeofday_last.json`
+- Old period playlists are automatically deleted
 
 ---
 
@@ -1126,9 +1222,10 @@ docker logs octogen | grep "Timezone:"
 |----------|-------|-----------|
 | **Required** | 4 | NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASSWORD, OCTOFIESTA_URL |
 | **AI Config** | 6 | AI_API_KEY (optional), AI_MODEL, AI_BACKEND, AI_BASE_URL, AI_MAX_CONTEXT_SONGS, AI_MAX_OUTPUT_TOKENS |
-| **Scheduling** | 3 | SCHEDULE_CRON, TZ, MIN_RUN_INTERVAL_HOURS |
+| **Scheduling** | 2 | SCHEDULE_CRON, TZ, MIN_RUN_INTERVAL_HOURS |
 | **Monitoring** | 4 | METRICS_ENABLED, METRICS_PORT, CIRCUIT_BREAKER_THRESHOLD, CIRCUIT_BREAKER_TIMEOUT |
-| **Web UI** | 2 | WEB_UI_ENABLED, WEB_UI_PORT |
+| **Web UI** | 2 | WEB_ENABLED, WEB_PORT |
+| **Time-of-Day** | 11 | TIMEOFDAY_ENABLED, TIMEOFDAY_*_START, TIMEOFDAY_*_END, TIMEOFDAY_PLAYLIST_SIZE, TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE |
 | **Batch Processing** | 2 | DOWNLOAD_BATCH_SIZE, DOWNLOAD_CONCURRENCY |
 | **Logging** | 2 | LOG_FORMAT, SHOW_PROGRESS |
 | **Templates** | 1 | PLAYLIST_TEMPLATES_FILE |
@@ -1137,7 +1234,7 @@ docker logs octogen | grep "Timezone:"
 | **AudioMuse-AI** | 7 | AUDIOMUSE_ENABLED, AUDIOMUSE_URL, AUDIOMUSE_AI_PROVIDER, AUDIOMUSE_AI_MODEL, AUDIOMUSE_AI_API_KEY, AUDIOMUSE_SONGS_PER_MIX, LLM_SONGS_PER_MIX |
 | **Performance** | 5 | PERF_ALBUM_BATCH_SIZE, PERF_MAX_ALBUMS_SCAN, PERF_SCAN_TIMEOUT, PERF_DOWNLOAD_DELAY, PERF_POST_SCAN_DELAY |
 | **System** | 2 | LOG_LEVEL, OCTOGEN_DATA_DIR |
-| **Total** | **44** | |
+| **Total** | **54** | |
 
 **Note**: At least one music source must be configured: AI_API_KEY, AudioMuse-AI, Last.fm, or ListenBrainz.
 

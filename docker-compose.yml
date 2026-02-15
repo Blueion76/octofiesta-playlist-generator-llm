@@ -5,6 +5,9 @@ services:
     image: blueion76/octogen:latest
     container_name: octogen
     restart: unless-stopped
+    ports:
+      - "5000:5000"  # Web UI dashboard
+      - "9090:9090"  # Prometheus metrics (optional)
     volumes:
       - octogen-data:/data
     environment:
@@ -115,11 +118,33 @@ services:
       # ============================================================================
       # OPTIONAL - Web UI Dashboard
       # ============================================================================
-      # Enable web-based monitoring dashboard (default: false)
-      WEB_UI_ENABLED: ${WEB_UI_ENABLED:-false}
+      # Enable web-based monitoring dashboard (default: true)
+      WEB_ENABLED: ${WEB_ENABLED:-true}
       
       # Port for web UI HTTP server
-      WEB_UI_PORT: ${WEB_UI_PORT:-5000}
+      WEB_PORT: ${WEB_PORT:-5000}
+
+      # ============================================================================
+      # OPTIONAL - Time-of-Day Playlists
+      # ============================================================================
+      # Enable automatic time-period playlist generation (default: true)
+      TIMEOFDAY_ENABLED: ${TIMEOFDAY_ENABLED:-true}
+      
+      # Time period boundaries (24-hour format)
+      TIMEOFDAY_MORNING_START: ${TIMEOFDAY_MORNING_START:-6}
+      TIMEOFDAY_MORNING_END: ${TIMEOFDAY_MORNING_END:-12}
+      TIMEOFDAY_AFTERNOON_START: ${TIMEOFDAY_AFTERNOON_START:-12}
+      TIMEOFDAY_AFTERNOON_END: ${TIMEOFDAY_AFTERNOON_END:-18}
+      TIMEOFDAY_EVENING_START: ${TIMEOFDAY_EVENING_START:-18}
+      TIMEOFDAY_EVENING_END: ${TIMEOFDAY_EVENING_END:-24}
+      TIMEOFDAY_NIGHT_START: ${TIMEOFDAY_NIGHT_START:-0}
+      TIMEOFDAY_NIGHT_END: ${TIMEOFDAY_NIGHT_END:-6}
+      
+      # Playlist size (default: 30 songs)
+      TIMEOFDAY_PLAYLIST_SIZE: ${TIMEOFDAY_PLAYLIST_SIZE:-30}
+      
+      # Auto-regenerate when time period changes (default: true)
+      TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE: ${TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE:-true}
 
       # ============================================================================
       # OPTIONAL - Batch Processing
