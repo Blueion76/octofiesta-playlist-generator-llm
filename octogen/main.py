@@ -674,7 +674,7 @@ class OctoGenEngine:
         top_artists: List[str],
         top_genres: List[str],
         favorited_songs: List[Dict],
-        low_rated_songs: Optional[List[Dict]] = None
+        low_rated_songs: Optional[List[Dict]] = None,
         playlist_name: str = None
     ) -> List[Dict]:
         """
