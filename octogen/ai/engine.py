@@ -597,7 +597,7 @@ CRITICAL RULES:
             logger.error("AI call limit reached (%d)", self.max_calls)
             return {}, "quota_exceeded"
     
-        logger.info("Making AI API call (%d/%d)...", self.call_count + 1, self.max_calls)
+        logger.info("Making LLM API call (%d/%d)...", self.call_count + 1, self.max_calls)
         self.call_count += 1
     
         try:
