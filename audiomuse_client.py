@@ -25,7 +25,7 @@ class AudioMuseClient:
             api_key: Optional API key for AI provider
         """
         self.base_url = base_url.rstrip('/')
-        self.ai_provider = ai_provider.upper()
+        self.ai_provider = ai_provider.upper()  # Normalize to uppercase for consistent comparison
         self.ai_model = ai_model
         self.api_key = api_key
         
@@ -49,7 +49,7 @@ class AudioMuseClient:
             "get_songs": num_songs
         }
         
-        # Add API key if provided
+        # Add API key if provided (case-sensitive comparison with normalized uppercase provider)
         if self.api_key:
             if self.ai_provider == "GEMINI":
                 payload["gemini_api_key"] = self.api_key

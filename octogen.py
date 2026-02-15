@@ -93,6 +93,9 @@ logger = logging.getLogger(__name__)
 LOW_RATING_MIN = 1
 LOW_RATING_MAX = 2
 
+# Default genres for Daily Mixes when library genres are insufficient
+DEFAULT_DAILY_MIX_GENRES = ["rock", "pop", "electronic", "hip-hop", "indie", "jazz"]
+
 # ============================================================================
 # BANNER
 # ============================================================================
@@ -1560,7 +1563,7 @@ class OctoGenEngine:
                 base_url=audiomuse_url,
                 ai_provider=self.config["audiomuse"]["ai_provider"],
                 ai_model=self.config["audiomuse"]["ai_model"],
-                api_key=self.config["audiomuse"]["ai_api_key"] if self.config["audiomuse"]["ai_api_key"] else None
+                api_key=self.config["audiomuse"]["ai_api_key"] or None
             )
             if audiomuse_client.check_health():
                 logger.info("✅ AudioMuse-AI connected at %s", audiomuse_url)
@@ -2042,6 +2045,7 @@ class OctoGenEngine:
         llm_songs_count = self.config["audiomuse"]["llm_songs_per_mix"]
         
         # Get songs from AudioMuse-AI if enabled
+        audiomuse_actual_count = 0
         if self.audiomuse_client:
             audiomuse_request = f"{characteristics} {genre_focus} music"
             audiomuse_songs = self.audiomuse_client.generate_playlist(
@@ -2053,15 +2057,24 @@ class OctoGenEngine:
             for song in audiomuse_songs:
                 songs.append({"artist": song.get('artist', ''), "title": song.get('title', '')})
             
-            logger.info(f"📻 Daily Mix {mix_number}: Got {len(songs)} songs from AudioMuse-AI")
+            audiomuse_actual_count = len(songs)
+            logger.info(f"📻 Daily Mix {mix_number}: Got {audiomuse_actual_count} songs from AudioMuse-AI")
         
         # Get additional songs from LLM
+        # If AudioMuse returned fewer songs, request more from LLM to reach target
+        num_llm_songs = llm_songs_count if self.audiomuse_client else 30
+        if self.audiomuse_client and audiomuse_actual_count < audiomuse_songs_count:
+            # Request extra LLM songs to compensate
+            shortfall = audiomuse_songs_count - audiomuse_actual_count
+            num_llm_songs = llm_songs_count + shortfall
+            logger.info(f"🔄 AudioMuse returned {audiomuse_actual_count}/{audiomuse_songs_count} songs, requesting {num_llm_songs} from LLM")
+        
         # We'll use the AI engine to generate just the LLM portion
         llm_songs = self._generate_llm_songs_for_daily_mix(
             mix_number=mix_number,
             genre_focus=genre_focus,
             characteristics=characteristics,
-            num_songs=llm_songs_count if self.audiomuse_client else 30,
+            num_songs=num_llm_songs,
             top_artists=top_artists,
             top_genres=top_genres,
             favorited_songs=favorited_songs,
@@ -2071,7 +2084,7 @@ class OctoGenEngine:
         songs.extend(llm_songs)
         
         logger.info(f"🤖 Daily Mix {mix_number}: Got {len(llm_songs)} songs from LLM")
-        logger.info(f"🎵 Daily Mix {mix_number}: Total {len(songs)} songs (AudioMuse: {len(songs) - len(llm_songs)}, LLM: {len(llm_songs)})")
+        logger.info(f"🎵 Daily Mix {mix_number}: Total {len(songs)} songs (AudioMuse: {audiomuse_actual_count}, LLM: {len(llm_songs)})")
         
         return songs[:30]  # Ensure we return exactly 30 songs
 
@@ -2266,12 +2279,12 @@ CRITICAL RULES:
                         # Define all hybrid playlist configurations (everything except Discovery)
                         hybrid_playlist_configs = [
                             # Daily Mixes
-                            {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else "rock", "characteristics": "energetic", "num": 1},
-                            {"name": "Daily Mix 2", "genre": top_genres[1] if len(top_genres) > 1 else "pop", "characteristics": "catchy upbeat", "num": 2},
-                            {"name": "Daily Mix 3", "genre": top_genres[2] if len(top_genres) > 2 else "electronic", "characteristics": "danceable rhythmic", "num": 3},
-                            {"name": "Daily Mix 4", "genre": top_genres[3] if len(top_genres) > 3 else "hip-hop", "characteristics": "rhythmic bass-heavy", "num": 4},
-                            {"name": "Daily Mix 5", "genre": top_genres[4] if len(top_genres) > 4 else "indie", "characteristics": "alternative atmospheric", "num": 5},
-                            {"name": "Daily Mix 6", "genre": top_genres[5] if len(top_genres) > 5 else "jazz", "characteristics": "smooth melodic", "num": 6},
+                            {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else DEFAULT_DAILY_MIX_GENRES[0], "characteristics": "energetic", "num": 1},
+                            {"name": "Daily Mix 2", "genre": top_genres[1] if len(top_genres) > 1 else DEFAULT_DAILY_MIX_GENRES[1], "characteristics": "catchy upbeat", "num": 2},
+                            {"name": "Daily Mix 3", "genre": top_genres[2] if len(top_genres) > 2 else DEFAULT_DAILY_MIX_GENRES[2], "characteristics": "danceable rhythmic", "num": 3},
+                            {"name": "Daily Mix 4", "genre": top_genres[3] if len(top_genres) > 3 else DEFAULT_DAILY_MIX_GENRES[3], "characteristics": "rhythmic bass-heavy", "num": 4},
+                            {"name": "Daily Mix 5", "genre": top_genres[4] if len(top_genres) > 4 else DEFAULT_DAILY_MIX_GENRES[4], "characteristics": "alternative atmospheric", "num": 5},
+                            {"name": "Daily Mix 6", "genre": top_genres[5] if len(top_genres) > 5 else DEFAULT_DAILY_MIX_GENRES[5], "characteristics": "smooth melodic", "num": 6},
                             # Mood/Activity playlists
                             {"name": "Chill Vibes", "genre": "ambient", "characteristics": "relaxing calm peaceful", "num": 8},
                             {"name": "Workout Energy", "genre": "high-energy", "characteristics": "upbeat motivating intense", "num": 9},
