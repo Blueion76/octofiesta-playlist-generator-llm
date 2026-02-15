@@ -105,13 +105,26 @@ def check_octofiesta() -> Dict[str, Any]:
                 "healthy": False
             }
         
-        # Try to ping the server
+        # Try to ping the root endpoint (simple health check)
         response = requests.get(
-            f"{url}/api/healthz",
+            f"{url}/",  # Changed from /api/healthz to /
             timeout=5
         )
         
         if response.status_code == 200:
+            # OctoFiesta returns {"status": "ok"}
+            try:
+                data = response.json()
+                if data.get("status") == "ok":
+                    return {
+                        "status": "healthy",
+                        "message": "Connected",
+                        "healthy": True
+                    }
+            except:
+                pass
+            
+            # If JSON parsing fails but got 200, still consider healthy
             return {
                 "status": "healthy",
                 "message": "Connected",
@@ -143,7 +156,6 @@ def check_octofiesta() -> Dict[str, Any]:
             "message": str(e),
             "healthy": False
         }
-
 
 def check_ai() -> Dict[str, Any]:
     """Check AI backend status.
@@ -210,9 +222,9 @@ def check_audiomuse() -> Dict[str, Any]:
                 "healthy": False
             }
         
-        # Try to check health
+        # Try to check health using /api/config endpoint
         response = requests.get(
-            f"{url}/health",
+            f"{url}/api/config",  # Changed from /health to /api/config
             timeout=5
         )
         
