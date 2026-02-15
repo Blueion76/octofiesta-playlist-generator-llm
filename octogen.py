@@ -2080,7 +2080,9 @@ class OctoGenEngine:
         # Get songs from AudioMuse-AI if enabled
         audiomuse_actual_count = 0
         if self.audiomuse_client:
+            logger.debug(f"Requesting {audiomuse_songs_count} songs from AudioMuse-AI for Daily Mix {mix_number}")
             audiomuse_request = f"{characteristics} {genre_focus} music"
+            logger.debug(f"AudioMuse request: '{audiomuse_request}'")
             audiomuse_songs = self.audiomuse_client.generate_playlist(
                 user_request=audiomuse_request,
                 num_songs=audiomuse_songs_count
@@ -2092,6 +2094,8 @@ class OctoGenEngine:
             
             audiomuse_actual_count = len(songs)
             logger.info(f"📻 Daily Mix {mix_number}: Got {audiomuse_actual_count} songs from AudioMuse-AI")
+            if audiomuse_actual_count < audiomuse_songs_count:
+                logger.debug(f"AudioMuse returned fewer songs than requested ({audiomuse_actual_count}/{audiomuse_songs_count})")
         
         # Get additional songs from LLM
         # If AudioMuse returned fewer songs, request more from LLM to reach target
@@ -2102,6 +2106,7 @@ class OctoGenEngine:
             num_llm_songs = llm_songs_count + shortfall
             logger.info(f"🔄 AudioMuse returned {audiomuse_actual_count}/{audiomuse_songs_count} songs, requesting {num_llm_songs} from LLM")
         
+        logger.debug(f"Requesting {num_llm_songs} songs from LLM for Daily Mix {mix_number}")
         # We'll use the AI engine to generate just the LLM portion
         llm_songs = self._generate_llm_songs_for_daily_mix(
             mix_number=mix_number,
@@ -2260,14 +2265,17 @@ CRITICAL RULES:
             write_health_status("running", "Analyzing music library")
             # Analyze library
             logger.info("Analyzing music library...")
+            logger.debug("Fetching starred songs from Navidrome")
             favorited_songs = self.nd.get_starred_songs()
     
             if not favorited_songs:
                 logger.warning("No starred songs found - library analysis limited")
+                logger.debug("Continuing with alternative music sources")
     
             # Generate AI playlists (only if AI is configured)
             all_playlists = {}
             if self.ai and favorited_songs:
+                logger.debug("AI engine is configured, proceeding with AI generation")
                 # Continue with normal AI generation
                 top_artists = self.nd.get_top_artists(100)
                 top_genres = self.nd.get_top_genres(20)
@@ -2278,6 +2286,7 @@ CRITICAL RULES:
                 logger.info("Top genres: %s", ", ".join(top_genres[:5]))
                 logger.info("Songs to avoid: %d (rated %d-%d stars)",
                            len(low_rated_songs), LOW_RATING_MIN, LOW_RATING_MAX)
+                logger.debug(f"Library analysis complete: {len(top_artists)} artists, {len(top_genres)} genres")
     
                 # Generate AI playlists
                 logger.info("=" * 70)
@@ -2292,10 +2301,12 @@ CRITICAL RULES:
                 )
     
                 self.stats["ai_calls"] = self.ai.call_count
+                logger.debug(f"AI generation complete, made {self.ai.call_count} API calls")
             elif not self.ai:
                 logger.info("=" * 70)
                 logger.info("AI not configured - using alternative music sources only")
                 logger.info("=" * 70)
+                logger.debug("Setting up library data for alternative sources")
                 # Set required variables for alternative sources
                 top_artists = self.nd.get_top_artists(100) if favorited_songs else []
                 top_genres = self.nd.get_top_genres(20) if favorited_songs else []
@@ -2304,6 +2315,7 @@ CRITICAL RULES:
                 logger.info("=" * 70)
                 logger.info("No starred songs - skipping AI generation")
                 logger.info("=" * 70)
+                logger.debug("No library data available for analysis")
                 top_artists = []
                 top_genres = []
                 low_rated_songs = []
@@ -2314,6 +2326,8 @@ CRITICAL RULES:
                 logger.error("❌ No playlists generated and no alternative services configured")
                 logger.error("❌ Nothing to process - exiting with error")
                 logger.error("=" * 70)
+                logger.debug("Available sources check: AI=%s, AudioMuse=%s, Last.fm=%s, ListenBrainz=%s",
+                           bool(all_playlists), bool(self.audiomuse_client), bool(self.lastfm), bool(self.listenbrainz))
                 write_health_status("unhealthy", "No music sources available")
                 sys.exit(1)
     

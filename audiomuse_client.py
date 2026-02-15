@@ -59,6 +59,8 @@ class AudioMuseClient:
                 payload["mistral_api_key"] = self.api_key
         
         try:
+            logger.debug(f"AudioMuse API request: {endpoint}")
+            logger.debug(f"Requesting {num_songs} songs with provider {self.ai_provider}")
             response = requests.post(endpoint, json=payload, timeout=60)
             response.raise_for_status()
             
@@ -66,16 +68,37 @@ class AudioMuseClient:
             songs = data.get('query_results', [])
             
             logger.info(f"AudioMuse-AI returned {len(songs)} songs for request: '{user_request}'")
+            if len(songs) < num_songs:
+                logger.debug(f"AudioMuse returned fewer songs than requested ({len(songs)}/{num_songs})")
             return songs
             
+        except requests.exceptions.Timeout as e:
+            logger.error(f"AudioMuse-AI API timeout after 60s: {e}")
+            return []
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"AudioMuse-AI HTTP error {e.response.status_code}: {e}")
+            return []
         except requests.exceptions.RequestException as e:
             logger.error(f"AudioMuse-AI API error: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error in AudioMuse-AI request: {e}")
             return []
     
     def check_health(self) -> bool:
         """Check if AudioMuse-AI server is accessible"""
         try:
+            logger.debug(f"Checking AudioMuse-AI health at {self.base_url}")
             response = requests.get(f"{self.base_url}/api/config", timeout=5)
-            return response.status_code == 200
-        except Exception:
+            is_healthy = response.status_code == 200
+            if is_healthy:
+                logger.debug("AudioMuse-AI health check passed")
+            else:
+                logger.debug(f"AudioMuse-AI health check failed with status {response.status_code}")
+            return is_healthy
+        except requests.exceptions.Timeout:
+            logger.debug("AudioMuse-AI health check timeout")
+            return False
+        except Exception as e:
+            logger.debug(f"AudioMuse-AI health check error: {e}")
             return False
