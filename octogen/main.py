@@ -943,7 +943,7 @@ CRITICAL RULES:
                 
                 # Track AI service outcome
                 if ai_error:
-                    self.service_tracker.record_service(
+                    self.service_tracker.record(
                         "ai_playlists",
                         success=False,
                         reason=ai_error,
@@ -953,7 +953,7 @@ CRITICAL RULES:
                 else:
                     playlist_count = len(all_playlists)
                     song_count = sum(len(songs) for songs in all_playlists.values())
-                    self.service_tracker.record_service(
+                    self.service_tracker.record(
                         "ai_playlists",
                         success=True,
                         playlists=playlist_count,
@@ -1036,7 +1036,7 @@ CRITICAL RULES:
                         
                         # Track AudioMuse service
                         audiomuse_playlists = self.stats["playlists_created"] - playlists_before_audiomuse
-                        self.service_tracker.record_service(
+                        self.service_tracker.record(
                             "audiomuse",
                             success=True,
                             playlists=audiomuse_playlists
@@ -1070,7 +1070,7 @@ CRITICAL RULES:
                         self.create_playlist("Last.fm Recommended", recs, 50)
                     playlists_created = self.stats["playlists_created"] - playlists_before
                     
-                    self.service_tracker.record_service(
+                    self.service_tracker.record(
                         "lastfm",
                         success=True,
                         playlists=playlists_created,
@@ -1078,7 +1078,7 @@ CRITICAL RULES:
                     )
                     logger.info("Last.fm service succeeded: %d playlists, %d songs", playlists_created, len(recs) if recs else 0)
                 except Exception as e:
-                    self.service_tracker.record_service(
+                    self.service_tracker.record(
                         "lastfm",
                         success=False,
                         reason=str(e)[:100]
@@ -1164,14 +1164,14 @@ CRITICAL RULES:
                     
                     playlists_created = self.stats["playlists_created"] - playlists_before
                     
-                    self.service_tracker.record_service(
+                    self.service_tracker.record(
                         "listenbrainz",
                         success=True,
                         playlists=playlists_created
                     )
                     logger.info("ListenBrainz service succeeded: %d playlists", playlists_created)
                 except Exception as e:
-                    self.service_tracker.record_service(
+                    self.service_tracker.record(
                         "listenbrainz",
                         success=False,
                         reason=str(e)[:100]
@@ -1324,7 +1324,7 @@ CRITICAL RULES:
                         record_period_playlist_generation(current_period, playlist_name, BASE_DIR)
                         
                         # Track in service summary
-                        self.service_tracker.record_service(
+                        self.service_tracker.record(
                             "timeofday_playlist",
                             success=True,
                             playlists=1,
@@ -1334,7 +1334,7 @@ CRITICAL RULES:
                         logger.info(f"✅ Time-of-day playlist created: {playlist_name}")
                     else:
                         logger.warning("No songs generated for time-period playlist")
-                        self.service_tracker.record_service(
+                        self.service_tracker.record(
                             "timeofday_playlist",
                             success=False,
                             reason="No songs generated"
@@ -1345,7 +1345,7 @@ CRITICAL RULES:
             except Exception as e:
                 logger.warning(f"Time-period playlist generation failed: {e}")
                 if hasattr(self, 'service_tracker'):
-                    self.service_tracker.record_service(
+                    self.service_tracker.record(
                         "timeofday_playlist",
                         success=False,
                         reason=str(e)[:100]
