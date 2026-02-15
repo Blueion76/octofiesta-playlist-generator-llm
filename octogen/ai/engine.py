@@ -520,47 +520,6 @@ CRITICAL RULES:
 
         return response.text
 
-    def _generate_with_openai(
-        self,
-        top_artists: List[str],
-        top_genres: List[str],
-        favorited_songs: List[Dict],
-        low_rated_songs: Optional[List[Dict]] = None,
-    ) -> str:
-        """Generate playlists using OpenAI library.
-        
-        Args:
-            top_artists: List of top artist names
-            top_genres: List of top genres
-            favorited_songs: List of favorited songs
-            low_rated_songs: Optional list of low-rated songs
-            
-        Returns:
-            JSON response string
-        """
-        cached_context = self._build_cached_context(
-            top_artists, top_genres, favorited_songs, low_rated_songs
-        )
-
-        # Get time-of-day context
-        time_context = self.get_time_context()
-        if time_context:
-            logger.info(f"🕐 Time context: {time_context.get('description')} - {time_context.get('mood')}")
-        
-        task_prompt = self._build_task_prompt(top_genres, time_context)
-        full_prompt = f"{cached_context}\n\n{task_prompt}"
-
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": full_prompt}],
-            temperature=0.8,
-            max_tokens=self.max_output_tokens,
-            response_format={"type": "json_object"},
-            timeout=120,
-        )
-
-        return response.choices[0].message.content.strip()
-
     def generate_all_playlists(
         self,
         top_artists: List[str],
@@ -687,31 +646,6 @@ CRITICAL RULES:
         total = sum(len(songs) for songs in all_playlists.values())
         logger.info("Generated %d playlists (%d songs)", len(all_playlists), total)
         return all_playlists, None
-            
-        except json.JSONDecodeError as e:
-            logger.error("JSON parse error at line %d col %d: %s", e.lineno, e.colno, e.msg)
-            return {}, "invalid_response"
-        except Exception as e:
-            error_msg = str(e).lower()
-            error_type = type(e).__name__
-            
-            # Check if it's a rate limit error
-            is_rate_limit = any(phrase in error_msg for phrase in [
-                'rate limit', 'quota', 'too many requests', '429', 
-                'resource_exhausted', 'rate_limit_exceeded'
-            ]) or 'RateLimitError' in error_type
-            
-            if is_rate_limit:
-                # Rollback call count for rate limit errors
-                self.call_count -= 1
-                logger.warning("Rate limit error detected - call count rolled back to %d", self.call_count)
-                logger.warning("You can retry immediately as this attempt was not recorded")
-                logger.error("AI request failed: %s", str(e)[:200])
-                return {}, "rate_limit"
-            
-            # For non-rate-limit errors, keep the call counted
-            logger.error("AI request failed (counted): %s", str(e)[:200])
-            return {}, "api_error"
             
     def _generate_with_retry(self, generate_func, *args, **kwargs) -> str:
         """Retry AI generation with exponential backoff for rate limits.
