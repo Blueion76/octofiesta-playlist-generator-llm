@@ -1350,7 +1350,7 @@ CRITICAL RULES:
             - error_reason: None if successful, or error code string like 'rate_limit', 'quota_exceeded', 'invalid_response', 'api_error'
         """
 
-        #Check if library changed and invalidate cache if needed
+        # Check if library changed and invalidate cache if needed
         if self._should_invalidate_cache(favorited_songs):
             self._invalidate_cache()
         
