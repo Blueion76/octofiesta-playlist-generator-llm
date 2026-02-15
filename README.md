@@ -88,7 +88,7 @@ cat > .env << 'EOF'
 NAVIDROME_URL=http://192.168.1.100:4533
 NAVIDROME_USER=admin
 NAVIDROME_PASSWORD=your_password
-OCTOFIESTA_URL=http://192.168.1.100:8080
+OCTOFIESTA_URL=http://192.168.1.100:5274
 AI_API_KEY=your_llm_api_key
 
 # Optional
@@ -144,7 +144,7 @@ services:
       NAVIDROME_URL: http://navidrome:4533
       NAVIDROME_USER: admin
       NAVIDROME_PASSWORD: ${NAVIDROME_PASSWORD}
-      OCTOFIESTA_URL: http://octofiesta:8080
+      OCTOFIESTA_URL: http://octofiesta:5274
       AI_API_KEY: ${GEMINI_API_KEY}
 
       # Scheduling 
@@ -231,7 +231,7 @@ LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
 | `NAVIDROME_URL` | Navidrome server URL | `http://192.168.1.100:4533` |
 | `NAVIDROME_USER` | Navidrome username | `admin` |
 | `NAVIDROME_PASSWORD` | Navidrome password | `your_password` |
-| `OCTOFIESTA_URL` | Octo-Fiesta server URL | `http://192.168.1.100:8080` |
+| `OCTOFIESTA_URL` | Octo-Fiesta server URL | `http://192.168.1.100:5274` |
 
 **Note**: At least one music source must also be configured:
 - `AI_API_KEY` (for LLM-based playlists), OR
