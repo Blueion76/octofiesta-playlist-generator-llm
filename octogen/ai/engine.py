@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from json_repair import repair_json
 import logging
 import os
 import random
@@ -435,6 +436,10 @@ Apply this context when selecting NEW songs to match the current time of day.
 11. "Drive Time" (30 songs): 25 library + 5 new upbeat
 {time_guidance}
 Return ONLY valid JSON:
+- Commas REQUIRED between ALL object properties and array elements
+- NO trailing commas after last element
+- ALL brackets must match and close properly
+
 {{
   "Discovery": [
     {{"artist": "Artist", "title": "Song"}},
@@ -627,11 +632,21 @@ CRITICAL RULES:
                 logger.error("Response incomplete - missing closing brace")
                 return {}, "invalid_response"
             
-            all_playlists = json.loads(content)
-            
-            if not isinstance(all_playlists, dict):
-                logger.error("AI response is not a JSON object")
-                return {}, "invalid_response"
+            allplaylists = json.loads(content)
+    except json.JSONDecodeError as json_err:
+        logger.warning(f"JSON parse failed at line {json_err.lineno} col {json_err.colno}: {json_err.msg}")
+        logger.info("Attempting automatic JSON repair...")
+        try:
+            repaired_content = repair_json(content)
+            allplaylists = json.loads(repaired_content)
+            logger.info("✓ JSON successfully repaired and parsed")
+        except Exception as repair_err:
+            logger.error(f"JSON repair failed: {str(repair_err)[:200]}")
+            return {}, "invalid_response"
+    
+    if not isinstance(allplaylists, dict):
+        logger.error("AI response is not a JSON object")
+        return {}, "invalid_response"
             
             # Validate and clean
             for playlist_name, songs in list(all_playlists.items()):
