@@ -98,6 +98,61 @@ class AIRecommendationEngine:
             else:
                 self.client = OpenAI(api_key=api_key)
                 logger.info("✓ OpenAI API initialized")
+    
+    def get_time_context(self) -> Optional[Dict[str, str]]:
+        """Get time-of-day context for AI prompts.
+        
+        Returns:
+            Dict with time context or None if not enabled
+        """
+        try:
+            from octogen.scheduler.timeofday import get_time_context as get_tod_context
+            import os
+            
+            # Check if time-of-day feature is enabled
+            enabled = os.getenv("TIMEOFDAY_ENABLED", "true").lower() in ("true", "yes", "1", "on")
+            if not enabled:
+                return None
+            
+            return get_tod_context()
+        except Exception as e:
+            logger.warning(f"Could not get time context: {e}")
+            return None
+    
+    def analyze_listening_profile(self, favorited_songs: List[Dict], top_artists: List[str], top_genres: List[str]) -> Dict[str, Any]:
+        """Analyze user's listening profile for better recommendations.
+        
+        Args:
+            favorited_songs: List of favorited songs
+            top_artists: Top artists
+            top_genres: Top genres
+            
+        Returns:
+            Dict with profile insights
+        """
+        profile = {
+            "total_songs": len(favorited_songs),
+            "top_artists": top_artists[:10],
+            "top_genres": top_genres[:6],
+            "diversity_score": 0.0,
+            "artist_distribution": {}
+        }
+        
+        # Calculate artist distribution
+        from collections import Counter
+        artist_counts = Counter(song.get("artist", "Unknown") for song in favorited_songs)
+        total = len(favorited_songs)
+        
+        # Diversity score: higher when more evenly distributed
+        if total > 0:
+            # Calculate normalized entropy
+            entropy = sum(-(count/total) * (count/total).bit_length() for count in artist_counts.values() if count > 0)
+            max_entropy = total.bit_length() if total > 1 else 1
+            profile["diversity_score"] = entropy / max_entropy if max_entropy > 0 else 0
+        
+        profile["artist_distribution"] = dict(artist_counts.most_common(10))
+        
+        return profile
 
     def _can_call_ai_today(self) -> bool:
         """Check if AI can be called today (once per day limit).
@@ -336,11 +391,12 @@ Use songs from this library for "library songs" and recommend NEW similar songs.
         logger.info("Cache created: %s (expires in 24 hours)", cached_content.name)
         return cached_content
 
-    def _build_task_prompt(self, top_genres: List[str]) -> str:
-        """Build the task-specific prompt.
+    def _build_task_prompt(self, top_genres: List[str], time_context: Optional[Dict[str, str]] = None) -> str:
+        """Build the task-specific prompt with optional time-of-day awareness.
         
         Args:
             top_genres: List of top genres
+            time_context: Optional time-of-day context from get_time_context()
             
         Returns:
             Task prompt string
@@ -355,6 +411,19 @@ Use songs from this library for "library songs" and recommend NEW similar songs.
             )
 
         variety_seed = random.randint(1000, 9999)
+        
+        # Add time-of-day context if provided
+        time_guidance = ""
+        if time_context:
+            time_guidance = f"""
+TIME-OF-DAY CONTEXT:
+Current period: {time_context.get('description', 'N/A')}
+Recommended mood: {time_context.get('mood', 'balanced')}
+Energy level: {time_context.get('energy', 'medium')}
+Guidance: {time_context.get('guidance', '')}
+
+Apply this context when selecting NEW songs to match the current time of day.
+"""
 
         return f"""Generate exactly 11 playlists (Variety Seed: {variety_seed}):
 
@@ -364,7 +433,7 @@ Use songs from this library for "library songs" and recommend NEW similar songs.
 9. "Workout Energy" (30 songs): 25 library + 5 new high-energy
 10. "Focus Flow" (30 songs): 25 library + 5 new ambient/instrumental
 11. "Drive Time" (30 songs): 25 library + 5 new upbeat
-
+{time_guidance}
 Return ONLY valid JSON:
 {{
   "Discovery": [
@@ -407,7 +476,12 @@ CRITICAL RULES:
             top_artists, top_genres, favorited_songs, low_rated_songs
         )
 
-        prompt = self._build_task_prompt(top_genres)
+        # Get time-of-day context
+        time_context = self.get_time_context()
+        if time_context:
+            logger.info(f"🕐 Time context: {time_context.get('description')} - {time_context.get('mood')}")
+        
+        prompt = self._build_task_prompt(top_genres, time_context)
 
         # Set thinking budget
         thinking_budget = 5000
@@ -463,7 +537,12 @@ CRITICAL RULES:
             top_artists, top_genres, favorited_songs, low_rated_songs
         )
 
-        task_prompt = self._build_task_prompt(top_genres)
+        # Get time-of-day context
+        time_context = self.get_time_context()
+        if time_context:
+            logger.info(f"🕐 Time context: {time_context.get('description')} - {time_context.get('mood')}")
+        
+        task_prompt = self._build_task_prompt(top_genres, time_context)
         full_prompt = f"{cached_context}\n\n{task_prompt}"
 
         response = self.client.chat.completions.create(

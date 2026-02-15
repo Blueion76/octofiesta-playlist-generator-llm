@@ -55,8 +55,8 @@ ENV OCTOGEN_DATA_DIR=/data \
     AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/ \
     METRICS_ENABLED=true \
     METRICS_PORT=9090 \
-    WEB_UI_ENABLED=false \
-    WEB_UI_PORT=5000
+    WEB_ENABLED=true \
+    WEB_PORT=5000
 
 # Health check - verifies log file exists and was updated recently
 HEALTHCHECK --interval=5m --timeout=30s --start-period=30s --retries=3 \

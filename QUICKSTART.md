@@ -44,13 +44,21 @@ nano .env
 ```bash
 docker run -d \
   --name octogen \
+  -p 5000:5000 \
   -v octogen-data:/data \
   --env-file .env \
   --restart unless-stopped \
   blueion76/octogen:latest
 ```
 
-### 4. Check Logs
+### 4. Access Web Dashboard
+Open `http://localhost:5000` in your browser to monitor:
+- Service health status
+- Playlists created
+- System statistics
+- Last run and next scheduled run
+
+### 5. Check Logs
 ```bash
 docker logs -f octogen
 
@@ -62,8 +70,8 @@ docker logs -f octogen
 # ⏰ Next run in 3.5 hours...
 ```
 
-### 5. Check Navidrome
-Open your Navidrome web interface and look for 11 new playlists! 🎉
+### 6. Check Navidrome
+Open your Navidrome web interface and look for new playlists! 🎉
 
 **Done!** Your playlists are ready and will auto-update daily.
 
@@ -80,6 +88,8 @@ services:
     image: blueion76/octogen:latest
     container_name: octogen
     restart: unless-stopped
+    ports:
+      - "5000:5000"  # Web UI dashboard
     volumes:
       - octogen-data:/data
     environment:
@@ -121,7 +131,13 @@ nano .env
 docker-compose up -d
 ```
 
-### 4. View Logs
+### 4. Access Web Dashboard
+Open `http://localhost:5000` in your browser to monitor:
+- Service health status
+- Playlists created
+- System statistics
+
+### 5. View Logs
 ```bash
 docker-compose logs -f octogen
 ```
