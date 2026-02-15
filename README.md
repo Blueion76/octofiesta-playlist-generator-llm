@@ -1,6 +1,8 @@
 # 🎵 OctoGen - AI-Powered Music Discovery for Navidrome
 
-[![Docker Hub](https://img.shields.io/docker/pulls/blueion76/octogen?logo=docker)](https://hub.docker.com/r/blueion76/octogen)
+[![Docker Build](https://github.com/Blueion76/Octogen/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Blueion76/Octogen/actions/workflows/docker-publish.yml)
+[![Docker Hub](https://img.shields.io/docker/v/blueion76/octogen?sort=semver&label=docker%20hub)](https://hub.docker.com/r/blueion76/octogen)
+[![Docker Pulls](https://img.shields.io/docker/pulls/blueion76/octogen?logo=docker)](https://hub.docker.com/r/blueion76/octogen)
 
 **OctoGen** automatically generates personalized music playlists for your Navidrome server using AI. It creates 11 curated playlists with over 350 songs, seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
 
@@ -124,6 +126,39 @@ docker logs -f octogen
 Open Navidrome and find your new playlists! 🎉
 
 **Playlists update automatically at 2 AM daily!**
+
+---
+
+## 🐳 Docker Tags
+
+OctoGen uses different Docker tags for different use cases:
+
+- **`dev`** - Automatically built from latest main branch (bleeding edge, may be unstable)
+- **`latest`** - Manually published stable releases (recommended for production)
+- **`vX.Y.Z`** - Semantic version tags for specific releases
+- **`sha-XXXXXXX`** - Build from specific commit (for debugging)
+
+### Using Development Builds
+
+To test the latest development version:
+```bash
+docker pull blueion76/octogen:dev
+```
+
+### Using Stable Releases
+
+For production use (recommended):
+```bash
+docker pull blueion76/octogen:latest
+```
+
+### Publishing a Stable Release
+
+Maintainers can publish to `latest` tag:
+1. Go to **Actions** → **Build and Push Docker Image**
+2. Click **"Run workflow"**
+3. Check **"Publish as latest tag (stable release)"**
+4. Click **"Run workflow"**
 
 ---
 
