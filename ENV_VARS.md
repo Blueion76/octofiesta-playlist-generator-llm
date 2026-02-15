@@ -306,7 +306,7 @@ TZ=America/Chicago
 ---
 
 ### MIN_RUN_INTERVAL_HOURS
-**Description**: Minimum hours between runs in manual mode (cooldown period)  
+**Description**: Minimum hours between runs when primary services (AI/AudioMuse) succeed  
 **Default**: `6`  
 **Range**: `1` to `48`  
 **Example**:
@@ -314,6 +314,7 @@ TZ=America/Chicago
 MIN_RUN_INTERVAL_HOURS=6
 ```
 **Notes**:
+- Applied when AI or AudioMuse playlists are successfully generated
 - **Only used in manual mode** (when `SCHEDULE_CRON` is not set or set to `manual`)
 - Prevents duplicate runs from container restarts or manual triggers
 - In scheduled mode (with `SCHEDULE_CRON`), cooldown is automatically calculated from cron expression
@@ -345,6 +346,50 @@ MIN_RUN_INTERVAL_HOURS=6
 # Manual mode with custom 4h cooldown
 MIN_RUN_INTERVAL_HOURS=4
 ```
+
+---
+
+### EXTERNAL_SERVICES_COOLDOWN_HOURS
+**Description**: Reduced cooldown period when only external services (Last.fm/ListenBrainz) succeed but AI fails  
+**Default**: `1.0`  
+**Range**: `0.5` to `24`  
+**Example**:
+```bash
+EXTERNAL_SERVICES_COOLDOWN_HOURS=1.0
+```
+**Notes**:
+- Applied when AI/AudioMuse fail but Last.fm or ListenBrainz succeed
+- Allows faster retries when AI hits rate limits but external services work
+- Prevents aggressive retry loops while allowing external services to refresh
+- Set lower (e.g., 0.5h) if you want immediate retries after AI failures
+- Set higher (e.g., 2h) if you want more conservative retry behavior
+
+**Smart Cooldown Logic**:
+The system applies different cooldowns based on what succeeded:
+- **Primary services succeeded** (AI or AudioMuse): Uses `MIN_RUN_INTERVAL_HOURS` (default: 6h)
+- **Only external services succeeded**: Uses `EXTERNAL_SERVICES_COOLDOWN_HOURS` (default: 1h)
+- **All services failed**: Uses `EXTERNAL_SERVICES_COOLDOWN_HOURS` (default: 1h)
+
+**Example Scenarios**:
+```bash
+# Scenario 1: AI succeeds
+# Last run: 5 hours ago, AI created 11 playlists
+# Result: Blocked (needs 6h cooldown)
+
+# Scenario 2: AI rate limited, externals succeed
+# Last run: 2 hours ago, AI failed (rate_limit), Last.fm succeeded
+# Result: Allowed to run (only needs 1h cooldown)
+
+# Scenario 3: All services failed
+# Last run: 30 minutes ago, all services failed
+# Result: Blocked (needs 1h cooldown)
+```
+
+**Why This Matters**:
+- **AI rate limits** don't prevent external service refreshes
+- **External services** (Last.fm/ListenBrainz) can run more frequently
+- **Prevents AI spam** with full 6h cooldown when AI succeeds
+- **Allows recovery** with 1h cooldown when AI fails
 
 ---
 
