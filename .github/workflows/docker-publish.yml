@@ -38,6 +38,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY_IMAGE }}
+          # Tags explanation:
+          # - Branch name (main, dev) for all branch pushes
+          # - SHA with branch prefix (main-abc123, dev-xyz456) for branch pushes
+          # - Semver tags (v1.2.3, v1.2) for version releases
+          # - 'latest' for main branch pushes and release events
+          # - 'dev' for dev branch pushes
           tags: |
             type=ref,event=branch
             type=sha,prefix=main-,enable=${{ github.ref == 'refs/heads/main' }}
@@ -107,6 +113,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY_IMAGE }}
+          # Tags explanation:
+          # - Branch name (main, dev) for all branch pushes
+          # - SHA with branch prefix (main-abc123, dev-xyz456) for branch pushes
+          # - Semver tags (v1.2.3, v1.2) for version releases
+          # - 'latest' for main branch pushes and release events
+          # - 'dev' for dev branch pushes
           tags: |
             type=ref,event=branch
             type=sha,prefix=main-,enable=${{ github.ref == 'refs/heads/main' }}
