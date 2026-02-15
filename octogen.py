@@ -1508,6 +1508,10 @@ class ServiceTracker:
             name: Service name (e.g., 'ai_playlists', 'audiomuse', 'lastfm', 'listenbrainz')
             success: Whether the service executed successfully
             **metadata: Additional metadata like playlists created, songs added, error reason, etc.
+        
+        Note:
+            Timestamp is recorded for each service for tracking and potential future use
+            (e.g., per-service cooldowns, debugging, audit logs).
         """
         self.services[name] = {
             "success": success,
