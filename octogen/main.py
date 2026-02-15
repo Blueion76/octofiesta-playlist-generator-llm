@@ -886,9 +886,32 @@ CRITICAL RULES:
                 logger.warning("No starred songs found - library analysis limited")
                 logger.debug("Continuing with alternative music sources")
     
-            # Generate AI playlists (only if AI is configured)
+            # Check if regular playlists should be generated now (time-gating)
+            from octogen.scheduler.timeofday import should_generate_regular_playlists, record_regular_playlist_generation
+            
+            should_generate_regular, reason = should_generate_regular_playlists(BASE_DIR)
+            
+            if not should_generate_regular:
+                logger.info("=" * 70)
+                logger.info("⏭️  SKIPPING REGULAR PLAYLIST GENERATION")
+                logger.info("=" * 70)
+                logger.info(f"Reason: {reason}")
+                logger.info("Regular playlists (Daily Mix, etc.) will be generated at scheduled time")
+                logger.info("=" * 70)
+                
+                # Skip to time-of-day playlist check only
+                # Set empty playlists to skip regular generation
+                all_playlists = {}
+            else:
+                logger.info("=" * 70)
+                logger.info("✅ PROCEEDING WITH REGULAR PLAYLIST GENERATION")
+                logger.info("=" * 70)
+                logger.info(f"Reason: {reason}")
+                logger.info("=" * 70)
+
+            # Generate AI playlists (only if AI is configured and should_generate_regular is True)
             all_playlists = {}
-            if self.ai and favorited_songs:
+            if should_generate_regular and self.ai and favorited_songs:
                 logger.debug("AI engine is configured, proceeding with AI generation")
                 # Continue with normal AI generation
                 top_artists = self.nd.get_top_artists(100)
@@ -955,8 +978,12 @@ CRITICAL RULES:
                 top_genres = []
                 low_rated_songs = []
     
-            # Check if we have any music sources available
-            if not all_playlists and not self.audiomuse_client and not self.lastfm and not self.listenbrainz:
+            # Check if we have any music sources available (but only fail if not generating regular playlists)
+            if not should_generate_regular:
+                # When skipping regular playlists, we only need time-of-day playlists
+                # Don't exit, just skip to time-of-day playlist generation
+                pass
+            elif not all_playlists and not self.audiomuse_client and not self.lastfm and not self.listenbrainz:
                 logger.error("=" * 70)
                 logger.error("❌ No playlists generated and no alternative services configured")
                 logger.error("❌ Nothing to process - exiting with error")
@@ -966,7 +993,7 @@ CRITICAL RULES:
                 write_health_status(BASE_DIR, "unhealthy", "No music sources available")
                 sys.exit(1)
     
-                if all_playlists:
+            if should_generate_regular and all_playlists:
                     # Handle hybrid playlists if AudioMuse is enabled
                     if self.audiomuse_client:
                         logger.info("=" * 70)
@@ -1030,8 +1057,8 @@ CRITICAL RULES:
                                 self.create_playlist(playlist_name, songs, max_songs=100)
 
             
-            # External services (run regardless of starred songs)
-            if self.lastfm:
+            # External services (run regardless of starred songs, but only if should_generate_regular)
+            if should_generate_regular and self.lastfm:
                 logger.info("=" * 70)
                 logger.info("LAST.FM RECOMMENDATIONS")
                 logger.info("=" * 70)
@@ -1057,7 +1084,7 @@ CRITICAL RULES:
                     )
                     logger.warning("Last.fm service failed: %s", e)
     
-            if self.listenbrainz:
+            if should_generate_regular and self.listenbrainz:
                 logger.info("Creating ListenBrainz 'Created For You' playlists...")
                 try:
                     playlists_before = self.stats["playlists_created"]
@@ -1150,10 +1177,14 @@ CRITICAL RULES:
                     )
                     logger.warning("ListenBrainz service failed: %s", e)
     
+            # Record successful regular playlist generation
+            if should_generate_regular:
+                record_regular_playlist_generation(BASE_DIR)
+    
             # Time-Period Playlist Generation (NEW FEATURE)
             try:
                 from octogen.scheduler.timeofday import (
-                    should_regenerate_period_playlist,
+                    should_generate_period_playlist_now,
                     get_current_period,
                     get_period_display_name,
                     get_time_context,
@@ -1161,7 +1192,7 @@ CRITICAL RULES:
                     get_period_playlist_size
                 )
                 
-                should_generate, reason = should_regenerate_period_playlist(BASE_DIR)
+                should_generate, reason = should_generate_period_playlist_now(data_dir=BASE_DIR)
                 
                 if should_generate:
                     logger.info("=" * 70)
