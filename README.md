@@ -325,7 +325,7 @@ Timezone: America/Chicago
 
 ### Schedule Examples
 
-| Schedule | Cron Expression | Description |
+Music| Schedule | Cron Expression | Description |
 |----------|----------------|-------------|
 | Daily at 2 AM | `0 2 * * *` | Once per day |
 | Twice daily | `0 */12 * * *` | Every 12 hours |
@@ -618,6 +618,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **[Google Gemini](https://ai.google.dev/)** - AI recommendations
 - **[Last.fm](https://www.last.fm/)** - Music discovery API
 - **[ListenBrainz](https://listenbrainz.org/)** - Open music metadata
+- **[AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI)** - In-depth analysis of your music library
 
 ---
 
@@ -625,7 +626,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Docker Hub**: [hub.docker.com/r/blueion76/octogen](https://hub.docker.com/r/blueion76/octogen)
 - **GitHub**: [github.com/Blueion76/Octogen](https://github.com/Blueion76/Octogen)
-- **GHCR**: [ghcr.io/blueion76/octogen](https://ghcr.io/blueion76/octogen)
 - **Issues**: [github.com/Blueion76/Octogen/issues](https://github.com/Blueion76/Octogen/issues)
 
 ---
