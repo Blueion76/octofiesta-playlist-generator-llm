@@ -569,40 +569,40 @@ CRITICAL RULES:
         low_rated_songs: Optional[List[Dict]] = None,
     ) -> Tuple[Dict[str, List[Dict]], Optional[str]]:
         """Generate playlists using configured backend.
-        
+    
         Args:
             top_artists: List of top artist names
             top_genres: List of top genres
             favorited_songs: List of favorited songs
             low_rated_songs: Optional list of low-rated songs
-        
+    
         Returns:
             Tuple of (playlists_dict, error_reason)
             - playlists_dict: Dictionary of playlist names to song lists
             - error_reason: None if successful, or error code string like 'rate_limit', 'quota_exceeded', 'invalid_response', 'api_error'
         """
-
+    
         # Check if library changed and invalidate cache if needed
         if self._should_invalidate_cache(favorited_songs):
             self._invalidate_cache()
-        
+    
         # Check memory cache first
         if self.response_cache is not None:
             logger.info("Using cached AI response (in-memory)")
             return self.response_cache, None
-        
+    
         # Check daily limit BEFORE checking call count
         if not self._can_call_ai_today():
             logger.error("Daily AI call limit reached. Program can restart but won't call AI again today.")
             return {}, "quota_exceeded"
-        
+    
         if self.call_count >= self.max_calls:
             logger.error("AI call limit reached (%d)", self.max_calls)
             return {}, "quota_exceeded"
-        
+    
         logger.info("Making AI API call (%d/%d)...", self.call_count + 1, self.max_calls)
         self.call_count += 1
-        
+    
         try:
             if self.backend == "gemini":
                 content = self._generate_with_retry(
@@ -614,61 +614,79 @@ CRITICAL RULES:
                     self._generate_with_openai,
                     top_artists, top_genres, favorited_songs, low_rated_songs
                 )
-
-            
+    
             # Clean JSON
             content = re.sub(r'^```(?:json)?\s*', '', content, flags=re.MULTILINE)
             content = re.sub(r'\s*```$', '', content, flags=re.MULTILINE)
             content = content.strip()
-            
+    
             json_start = content.find('{')
             json_end = content.rfind('}')
             if json_start != -1 and json_end != -1:
                 content = content[json_start:json_end + 1]
-            
+    
             logger.info("AI response length: %d chars", len(content))
-            
+    
             if not content.endswith('}'):
                 logger.error("Response incomplete - missing closing brace")
                 return {}, "invalid_response"
-            
-            allplaylists = json.loads(content)
-    except json.JSONDecodeError as json_err:
-        logger.warning(f"JSON parse failed at line {json_err.lineno} col {json_err.colno}: {json_err.msg}")
-        logger.info("Attempting automatic JSON repair...")
-        try:
-            repaired_content = repair_json(content)
-            allplaylists = json.loads(repaired_content)
-            logger.info("✓ JSON successfully repaired and parsed")
-        except Exception as repair_err:
-            logger.error(f"JSON repair failed: {str(repair_err)[:200]}")
+    
+            all_playlists = json.loads(content)
+    
+        except json.JSONDecodeError as json_err:
+            logger.warning(f"JSON parse failed at line {json_err.lineno} col {json_err.colno}: {json_err.msg}")
+            logger.info("Attempting automatic JSON repair...")
+            try:
+                repaired_content = repair_json(content)
+                all_playlists = json.loads(repaired_content)
+                logger.info("✓ JSON successfully repaired and parsed")
+            except Exception as repair_err:
+                logger.error(f"JSON repair failed: {str(repair_err)[:200]}")
+                return {}, "invalid_response"
+        except Exception as e:
+            error_msg = str(e).lower()
+            error_type = type(e).__name__
+    
+            # Check if it's a rate limit error
+            is_rate_limit = any(phrase in error_msg for phrase in [
+                'rate limit', 'quota', 'too many requests', '429', 
+                'resource_exhausted', 'rate_limit_exceeded'
+            ]) or 'RateLimitError' in error_type
+    
+            if is_rate_limit:
+                self.call_count -= 1
+                logger.warning("Rate limit error detected - call count rolled back to %d", self.call_count)
+                logger.warning("You can retry immediately as this attempt was not recorded")
+                logger.error("AI request failed: %s", str(e)[:200])
+                return {}, "rate_limit"
+    
+            logger.error("AI request failed (counted): %s", str(e)[:200])
+            return {}, "api_error"
+    
+        if not isinstance(all_playlists, dict):
+            logger.error("AI response is not a JSON object")
             return {}, "invalid_response"
     
-    if not isinstance(allplaylists, dict):
-        logger.error("AI response is not a JSON object")
-        return {}, "invalid_response"
-            
-            # Validate and clean
-            for playlist_name, songs in list(all_playlists.items()):
-                if not isinstance(songs, list):
-                    logger.warning("Invalid format for %s", playlist_name)
-                    all_playlists[playlist_name] = []
-                    continue
-                
-                valid_songs = [
-                    song for song in songs
-                    if isinstance(song, dict) and "artist" in song and "title" in song
-                ]
-                all_playlists[playlist_name] = valid_songs
-            
-            self.response_cache = all_playlists
-            
-            # Record the AI call timestamp
-            self._record_ai_call()
-            
-            total = sum(len(songs) for songs in all_playlists.values())
-            logger.info("Generated %d playlists (%d songs)", len(all_playlists), total)
-            return all_playlists, None
+        # Validate and clean
+        for playlist_name, songs in list(all_playlists.items()):
+            if not isinstance(songs, list):
+                logger.warning("Invalid format for %s", playlist_name)
+                all_playlists[playlist_name] = []
+                continue
+    
+            valid_songs = [
+                song for song in songs
+                if isinstance(song, dict) and "artist" in song and "title" in song
+            ]
+            all_playlists[playlist_name] = valid_songs
+    
+        self.response_cache = all_playlists
+    
+        self._record_ai_call()
+    
+        total = sum(len(songs) for songs in all_playlists.values())
+        logger.info("Generated %d playlists (%d songs)", len(all_playlists), total)
+        return all_playlists, None
             
         except json.JSONDecodeError as e:
             logger.error("JSON parse error at line %d col %d: %s", e.lineno, e.colno, e.msg)
