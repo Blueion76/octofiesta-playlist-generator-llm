@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
     tags:
       - 'v*'
   release:
@@ -37,13 +38,20 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY_IMAGE }}
+          # Tags explanation:
+          # - Branch name (main, dev) for all branch pushes
+          # - SHA with branch prefix (main-abc123, dev-xyz456) for branch pushes
+          # - Semver tags (v1.2.3, v1.2) for version releases
+          # - 'latest' for main branch pushes and release events
+          # - 'dev' for dev branch pushes
           tags: |
+            type=ref,event=branch
+            type=sha,prefix=main-,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=dev-,enable=${{ github.ref == 'refs/heads/dev' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,prefix=sha-
-            type=raw,value=dev,enable={{is_default_branch}}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish_latest == true) }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'release' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -105,13 +113,20 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY_IMAGE }}
+          # Tags explanation:
+          # - Branch name (main, dev) for all branch pushes
+          # - SHA with branch prefix (main-abc123, dev-xyz456) for branch pushes
+          # - Semver tags (v1.2.3, v1.2) for version releases
+          # - 'latest' for main branch pushes and release events
+          # - 'dev' for dev branch pushes
           tags: |
+            type=ref,event=branch
+            type=sha,prefix=main-,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=dev-,enable=${{ github.ref == 'refs/heads/dev' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,prefix=sha-
-            type=raw,value=dev,enable={{is_default_branch}}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish_latest == true) }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'release' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
