@@ -2728,17 +2728,18 @@ CRITICAL RULES:
                     period_songs = []
                     
                     # Get 25 songs from AudioMuse if enabled
-                    if self.audiomuse:
+                    if self.audiomuse_client:
                         logger.info("🎵 Generating 25 songs via AudioMuse-AI...")
                         try:
                             if favorited_songs:
                                 # Use random seed from favorited songs
                                 seed_song = favorited_songs[len(favorited_songs) // 2]
-                                audiomuse_songs = self.audiomuse.get_recommendations(
-                                    song_title=seed_song.get("title", ""),
-                                    artist=seed_song.get("artist", ""),
-                                    genre_focus=time_context.get("mood", ""),
-                                    num_recommendations=25
+                                # Build a natural language request for AudioMuse
+                                mood = time_context.get("mood", "")
+                                request_text = f"{mood} music similar to {seed_song.get('title', '')} by {seed_song.get('artist', '')}"
+                                audiomuse_songs = self.audiomuse_client.generate_playlist(
+                                    user_request=request_text,
+                                    num_songs=25
                                 )
                                 
                                 if audiomuse_songs:
