@@ -2662,6 +2662,174 @@ CRITICAL RULES:
                     )
                     logger.warning("ListenBrainz service failed: %s", e)
     
+            # Time-Period Playlist Generation (NEW FEATURE)
+            try:
+                from octogen.scheduler.timeofday import (
+                    should_regenerate_period_playlist,
+                    get_current_period,
+                    get_period_display_name,
+                    get_time_context,
+                    record_period_playlist_generation,
+                    get_period_playlist_size
+                )
+                
+                should_generate, reason = should_regenerate_period_playlist(BASE_DIR)
+                
+                if should_generate:
+                    logger.info("=" * 70)
+                    logger.info("TIME-OF-DAY PLAYLIST GENERATION")
+                    logger.info("=" * 70)
+                    
+                    current_period = get_current_period()
+                    playlist_name = get_period_display_name(current_period)
+                    time_context = get_time_context(current_period)
+                    playlist_size = get_period_playlist_size()
+                    
+                    logger.info(f"Period: {time_context.get('description')}")
+                    logger.info(f"Mood: {time_context.get('mood')}")
+                    logger.info(f"Playlist: {playlist_name}")
+                    logger.info(f"Reason: {reason}")
+                    
+                    # Delete old period playlists first
+                    try:
+                        all_playlists_in_navidrome = self.nd.get_all_playlists()
+                        period_patterns = ["Morning Mix", "Afternoon Flow", "Evening Chill", "Night Vibes"]
+                        
+                        for nd_playlist in all_playlists_in_navidrome:
+                            nd_playlist_name = nd_playlist.get("name", "")
+                            # Delete if it's a time-period playlist but not the current one
+                            if any(pattern in nd_playlist_name for pattern in period_patterns) and nd_playlist_name != playlist_name:
+                                playlist_id = nd_playlist.get("id")
+                                if playlist_id:
+                                    logger.info(f"🗑️  Deleting old period playlist: {nd_playlist_name}")
+                                    self.nd.delete_playlist(playlist_id)
+                    except Exception as e:
+                        logger.warning(f"Could not delete old period playlists: {e}")
+                    
+                    # Generate the time-period playlist
+                    # NEW REQUIREMENT: Use AudioMuse for 25 songs, LLM for 5 songs
+                    period_songs = []
+                    
+                    # Get 25 songs from AudioMuse if enabled
+                    if self.audiomuse:
+                        logger.info("🎵 Generating 25 songs via AudioMuse-AI...")
+                        try:
+                            if favorited_songs:
+                                # Use random seed from favorited songs
+                                seed_song = favorited_songs[len(favorited_songs) // 2]
+                                audiomuse_songs = self.audiomuse.get_recommendations(
+                                    song_title=seed_song.get("title", ""),
+                                    artist=seed_song.get("artist", ""),
+                                    genre_focus=time_context.get("mood", ""),
+                                    num_recommendations=25
+                                )
+                                
+                                if audiomuse_songs:
+                                    period_songs.extend(audiomuse_songs[:25])
+                                    logger.info(f"✓ Got {len(audiomuse_songs[:25])} songs from AudioMuse")
+                        except Exception as e:
+                            logger.warning(f"AudioMuse generation failed: {e}")
+                    
+                    # Get 5 songs from LLM
+                    if self.ai and favorited_songs:
+                        logger.info("🤖 Generating 5 songs via LLM...")
+                        try:
+                            # Build a special prompt for time-period playlist
+                            llm_prompt = f"""Generate exactly 5 new song recommendations for a {playlist_name}.
+
+Time context: {time_context.get('description')}
+Mood: {time_context.get('mood')}
+Energy level: {time_context.get('energy')}
+
+{time_context.get('guidance')}
+
+Return ONLY valid JSON:
+{{
+  "songs": [
+    {{"artist": "Artist Name", "title": "Song Title"}},
+    {{"artist": "Artist Name", "title": "Song Title"}}
+  ]
+}}
+
+CRITICAL RULES:
+- Exactly 5 songs
+- Both "artist" and "title" required
+- Double quotes for ALL strings
+- No trailing commas
+- No markdown, just raw JSON
+"""
+                            
+                            # Use simplified AI call for just 5 songs
+                            if self.ai.backend == "gemini" and hasattr(self.ai, 'genai_client'):
+                                from google.genai import types
+                                response = self.ai.genai_client.models.generate_content(
+                                    model=self.ai.model,
+                                    contents=llm_prompt,
+                                    config=types.GenerateContentConfig(
+                                        temperature=0.9,
+                                        max_output_tokens=1000,
+                                        response_mime_type="application/json"
+                                    )
+                                )
+                                llm_response = response.text
+                            else:
+                                # OpenAI-compatible
+                                response = self.ai.client.chat.completions.create(
+                                    model=self.ai.model,
+                                    messages=[{"role": "user", "content": llm_prompt}],
+                                    temperature=0.9,
+                                    max_tokens=1000,
+                                    response_format={"type": "json_object"}
+                                )
+                                llm_response = response.choices[0].message.content
+                            
+                            # Parse response
+                            import json
+                            llm_data = json.loads(llm_response)
+                            llm_songs = llm_data.get("songs", [])
+                            
+                            if llm_songs:
+                                period_songs.extend(llm_songs[:5])
+                                logger.info(f"✓ Got {len(llm_songs[:5])} songs from LLM")
+                        except Exception as e:
+                            logger.warning(f"LLM generation failed: {e}")
+                    
+                    # Create the playlist if we have songs
+                    if period_songs:
+                        logger.info(f"Creating {playlist_name} with {len(period_songs)} songs...")
+                        self.create_playlist(playlist_name, period_songs, max_songs=playlist_size)
+                        
+                        # Record generation
+                        record_period_playlist_generation(current_period, playlist_name, BASE_DIR)
+                        
+                        # Track in service summary
+                        self.service_tracker.record_service(
+                            "timeofday_playlist",
+                            success=True,
+                            playlists=1,
+                            songs=len(period_songs),
+                            period=current_period
+                        )
+                        logger.info(f"✅ Time-of-day playlist created: {playlist_name}")
+                    else:
+                        logger.warning("No songs generated for time-period playlist")
+                        self.service_tracker.record_service(
+                            "timeofday_playlist",
+                            success=False,
+                            reason="No songs generated"
+                        )
+                else:
+                    logger.info(f"⏭️  Skipping time-period playlist: {reason}")
+                    
+            except Exception as e:
+                logger.warning(f"Time-period playlist generation failed: {e}")
+                if hasattr(self, 'service_tracker'):
+                    self.service_tracker.record_service(
+                        "timeofday_playlist",
+                        success=False,
+                        reason=str(e)[:100]
+                    )
+    
             # Service Execution Summary
             logger.info("=" * 70)
             logger.info("SERVICE EXECUTION SUMMARY")
@@ -2677,7 +2845,8 @@ CRITICAL RULES:
                         "ai_playlists": "AI Playlists",
                         "audiomuse": "AudioMuse-AI",
                         "lastfm": "Last.fm",
-                        "listenbrainz": "ListenBrainz"
+                        "listenbrainz": "ListenBrainz",
+                        "timeofday_playlist": "Time-of-Day Playlist"
                     }.get(service_name, service_name)
                     
                     if api_calls:
@@ -2692,7 +2861,8 @@ CRITICAL RULES:
                         "ai_playlists": "AI Playlists",
                         "audiomuse": "AudioMuse-AI",
                         "lastfm": "Last.fm",
-                        "listenbrainz": "ListenBrainz"
+                        "listenbrainz": "ListenBrainz",
+                        "timeofday_playlist": "Time-of-Day Playlist"
                     }.get(service_name, service_name)
                     
                     logger.warning("❌ %s: FAILED (reason: %s)", service_display, reason)
@@ -2890,23 +3060,23 @@ def main() -> None:
             logger.warning(f"Failed to initialize metrics: {e}")
     
     # Start web UI if enabled
-    web_ui_enabled = os.getenv("WEB_UI_ENABLED", "false").lower() == "true"
-    if web_ui_enabled and MODULES_AVAILABLE:
+    web_enabled = os.getenv("WEB_ENABLED", "true").lower() not in ("false", "no", "off", "disabled")
+    if web_enabled and MODULES_AVAILABLE:
         try:
-            from octogen.web.app import create_app
-            import threading
+            from octogen.web.app import start_web_server
             
-            web_port = int(os.getenv("WEB_UI_PORT", "5000"))
-            app = create_app()
+            web_port = int(os.getenv("WEB_PORT", "5000"))
             
-            def run_web_ui():
-                app.run(host='0.0.0.0', port=web_port, debug=False)
+            # Start web server in background thread
+            web_thread = start_web_server(port=web_port, data_dir=BASE_DIR, threaded=True)
             
-            web_thread = threading.Thread(target=run_web_ui, daemon=True)
-            web_thread.start()
-            logger.info(f"Web UI started on port {web_port}")
+            if web_thread:
+                logger.info(f"🌐 Web UI started on port {web_port}")
+                logger.info(f"🌐 Access dashboard at http://localhost:{web_port}")
+            
         except Exception as e:
             logger.warning(f"Failed to start web UI: {e}")
+            logger.warning("Continuing without web UI...")
 
     print_banner()
 
