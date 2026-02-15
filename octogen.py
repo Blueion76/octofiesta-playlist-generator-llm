@@ -1892,19 +1892,16 @@ class OctoGenEngine:
         
         # Determine cooldown periods
         schedule_cron = os.getenv("SCHEDULE_CRON", "").strip()
-        external_services_cooldown = float(os.getenv("EXTERNAL_SERVICES_COOLDOWN_HOURS", "1.0"))
         
         if schedule_cron and schedule_cron.lower() not in ("manual", "false", "no", "off", "disabled"):
             # Use 90% of detected cron interval for full cooldown
             detected_interval = calculate_cron_interval(schedule_cron)
             full_cooldown_hours = detected_interval * 0.9
-            logger.info("🕐 Full cooldown period: %.1f hours (90%% of cron interval)", full_cooldown_hours)
+            logger.info("🕐 Cooldown period: %.1f hours (90%% of cron interval)", full_cooldown_hours)
         else:
             # Manual mode - use environment variable for full cooldown
             full_cooldown_hours = float(os.getenv("MIN_RUN_INTERVAL_HOURS", "6"))
-            logger.info("🕐 Full cooldown period: %.1f hours (manual mode)", full_cooldown_hours)
-        
-        logger.info("🕐 External services cooldown: %.1f hours", external_services_cooldown)
+            logger.info("🕐 Cooldown period: %.1f hours (manual mode)", full_cooldown_hours)
         
         # Check last run time
         if not run_tracker_file.exists():
@@ -1930,26 +1927,14 @@ class OctoGenEngine:
                 
                 hours_since_last = (now - last_run).total_seconds() / 3600
                 
-                # Check if primary services (AI or AudioMuse) succeeded last time
-                ai_succeeded = services.get("ai_playlists", {}).get("success", False)
-                audiomuse_succeeded = services.get("audiomuse", {}).get("success", False)
-                primary_services_succeeded = ai_succeeded or audiomuse_succeeded
-                
-                # Determine which cooldown to apply
-                if primary_services_succeeded:
-                    # Full cooldown if primary services succeeded
-                    cooldown_to_apply = full_cooldown_hours
-                    cooldown_type = "Full cooldown"
-                else:
-                    # Reduced cooldown if only external services succeeded or all failed
-                    cooldown_to_apply = external_services_cooldown
-                    cooldown_type = "Reduced cooldown (external services only)"
+                # Always apply full cooldown to respect schedule
+                # This prevents constant re-runs when only Last.fm/ListenBrainz succeed
+                cooldown_to_apply = full_cooldown_hours
                 
                 if hours_since_last < cooldown_to_apply:
                     logger.info("=" * 70)
                     logger.info("⏭️  OctoGen ran %.1f hours ago (cooldown: %.1f hours)", 
                                  hours_since_last, cooldown_to_apply)
-                    logger.info("⏭️  Cooldown type: %s", cooldown_type)
                     logger.info("⏭️  Skipping to prevent duplicate run")
                     logger.info("⏭️  Last run: %s", last_run.strftime("%Y-%m-%d %H:%M:%S"))
                     logger.info("⏭️  Next run allowed after: %s", 
@@ -1966,7 +1951,7 @@ class OctoGenEngine:
                     logger.info("=" * 70)
                     return False
                 
-                logger.info("✅ Cooldown passed (%.1f hours since last run, %s)", hours_since_last, cooldown_type)
+                logger.info("✅ Cooldown passed (%.1f hours since last run)", hours_since_last)
                 
                 # Show what services succeeded/failed last time for context
                 if services:
