@@ -503,8 +503,14 @@ TIMEOFDAY_ENABLED=true
 - Creates mood-appropriate playlists based on time of day
 - Generates one playlist per time period (Morning/Afternoon/Evening/Night)
 - Uses hybrid generation: 25 songs from AudioMuse + 5 from LLM
+- **Time-gated**: Each playlist only generates at its designated hour (±30 minutes)
+- **Morning Mix**: Generates at 6:00 AM only
+- **Afternoon Flow**: Generates at 12:00 PM (noon) only
+- **Evening Chill**: Generates at 4:00 PM only
+- **Night Vibes**: Generates at 10:00 PM only
+- Duplicate prevention: Won't regenerate within 1 hour
+- Respects TZ environment variable for timezone
 - Auto-deletes previous period's playlist when generating new one
-- Playlists: "Morning Mix", "Afternoon Flow", "Evening Chill", "Night Vibes"
 
 ---
 
@@ -570,18 +576,21 @@ TIMEOFDAY_PLAYLIST_SIZE=30
 ---
 
 ### TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE
-**Description**: Auto-regenerate playlist when time period changes  
-**Default**: `true`  
+**Description**: **Deprecated** - Time-gated generation now controls when playlists are created
+**Default**: `true` (ignored)
 **Options**: `true`, `false`  
 **Example**:
 ```bash
 TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE=true
 ```
 **Notes**:
-- When enabled, creates new playlist when entering a new time period
-- Prevents regenerating if already created for current period
+- **This setting is now deprecated** and has no effect
+- Period playlists now use time-gated generation
+- Each period playlist only generates at its designated time (6am, 12pm, 4pm, 10pm)
+- Generation occurs within ±30 minute window of target time
+- Duplicate prevention prevents multiple generations within 1 hour
 - Tracked in `octogen_timeofday_last.json`
-- Old period playlists are automatically deleted
+- Old period playlists are automatically deleted when new one generates
 
 ---
 

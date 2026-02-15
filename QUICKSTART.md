@@ -276,6 +276,25 @@ OctoGen now has **built-in cron scheduling** - no external cron daemon needed!
 | Weekly (Sunday 3 AM) | `0 3 * * 0` | Once per week |
 | Every Monday 9 AM | `0 9 * * 1` | Weekly on Monday |
 | Every 30 minutes | `*/30 * * * *` | For testing |
+| **Time-of-day playlists** | `0 2,6,12,16,22 * * *` | At 2am (regular), 6am (morning), 12pm (afternoon), 4pm (evening), 10pm (night) |
+
+### Time-of-Day Playlist Scheduling
+To enable time-gated period playlists, use multiple cron times:
+```bash
+# Run at designated times for period playlists
+SCHEDULE_CRON=0 2,6,12,16,22 * * *
+TIMEOFDAY_ENABLED=true
+TZ=America/Chicago
+```
+
+**What happens**:
+- **2:00 AM**: Regular playlists (Daily Mix, Discovery, etc.) generate
+- **6:00 AM**: Morning Mix generates (±30 min window)
+- **12:00 PM**: Afternoon Flow generates (±30 min window)
+- **4:00 PM**: Evening Chill generates (±30 min window)
+- **10:00 PM**: Night Vibes generates (±30 min window)
+
+**Smart duplicate prevention**: If run multiple times within an hour, playlists won't regenerate.
 
 ### Disable Scheduling
 ```bash
@@ -321,7 +340,7 @@ Timezone: America/Chicago
 
 ## 📊 What You'll Get
 
-### 11 Playlists Created:
+### Regular Playlists (11 total):
 1. **Discovery Weekly** (50 songs) - New discoveries
 2. **Daily Mix 1** (30 songs) - Genre-based
 3. **Daily Mix 2** (30 songs) - Genre-based
@@ -336,8 +355,21 @@ Timezone: America/Chicago
 
 **Total: 350+ songs automatically curated!**
 
+### Time-of-Day Playlists (Optional):
+Time-gated playlists that only generate at designated hours:
+- **Morning Mix** (30 songs) - Generates at 6:00 AM only (±30 min)
+- **Afternoon Flow** (30 songs) - Generates at 12:00 PM only (±30 min)
+- **Evening Chill** (30 songs) - Generates at 4:00 PM only (±30 min)
+- **Night Vibes** (30 songs) - Generates at 10:00 PM only (±30 min)
+
+Enable with: `TIMEOFDAY_ENABLED=true`
+
+**Smart scheduling**: Each period playlist only generates once per day at its designated time, preventing constant regeneration.
+
 ### Daily Updates
 With `SCHEDULE_CRON` set, playlists refresh automatically:
+- Regular playlists refresh at scheduled times (with duplicate prevention)
+- Time-of-day playlists only generate at their designated hours
 - New songs discovered
 - Rotates recommendations for variety
 - Uses daily cache for efficiency

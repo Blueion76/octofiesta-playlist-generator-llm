@@ -30,23 +30,32 @@ Built with AI assistance. Contributions and pull requests welcome!
 
 ### 🕐 Time-of-Day Playlists
 
-Automatic mood-appropriate playlists that rotate based on time of day:
+**Time-gated** mood-appropriate playlists that only generate at designated times:
 
 - **Morning Mix (6 AM - 12 PM)**: Upbeat, energetic, positive vibes
+  - Generates at **6:00 AM only** (±30 min tolerance)
 - **Afternoon Flow (12 PM - 6 PM)**: Balanced, productive, moderate energy
+  - Generates at **12:00 PM only** (±30 min tolerance)
 - **Evening Chill (6 PM - 12 AM)**: Relaxing, wind-down music
+  - Generates at **4:00 PM only** (±30 min tolerance)
 - **Night Vibes (12 AM - 6 AM)**: Ambient, calm, sleep-friendly
+  - Generates at **10:00 PM only** (±30 min tolerance)
 
 **Features**:
+- ✅ **Time-gated generation**: Each playlist only generates at its designated hour
+- ✅ **Duplicate prevention**: Won't regenerate within 1 hour
+- ✅ **Smart scheduling**: Use cron `0 2,6,12,16,22 * * *` for optimal timing
 - ✅ Hybrid generation: 25 songs from AudioMuse-AI + 5 from LLM
-- ✅ Auto-rotates when time period changes
-- ✅ Auto-deletes previous period's playlist
+- ✅ Auto-deletes previous period's playlist when generating
 - ✅ Configurable time boundaries
 - ✅ AI prompts enhanced with time-of-day context
+- ✅ Respects timezone (TZ environment variable)
 
 Enable with:
 ```bash
 TIMEOFDAY_ENABLED=true
+# Recommended: Schedule at designated times
+SCHEDULE_CRON=0 2,6,12,16,22 * * *
 ```
 
 ### 🎛️ Hybrid Mode (AudioMuse-AI Integration)
