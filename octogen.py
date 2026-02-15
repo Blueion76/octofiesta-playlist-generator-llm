@@ -467,8 +467,8 @@ class ListenBrainzAPI:
 
 
 
-class OctoFiestarrTrigger:
-    """Triggers octo-fiestarr downloads via Subsonic endpoints."""
+class OctoFiestaTrigger:
+    """Triggers Octo-Fiesta downloads via Subsonic endpoints."""
 
     def __init__(self, octo_url: str, username: str, password: str, dry_run: bool = False):
         self.octo_url = octo_url.rstrip("/")
@@ -1591,8 +1591,8 @@ class OctoGenEngine:
             logger.error("Cannot connect to Navidrome")
             sys.exit(1)
 
-        self.octo = OctoFiestarrTrigger(
-            self.config["octofiestarr"]["url"],
+        self.octo = OctoFiestaTrigger(
+            self.config["octofiesta"]["url"],
             self.config["navidrome"]["username"],
             self.config["navidrome"]["password"],
             dry_run=dry_run
@@ -1704,7 +1704,7 @@ class OctoGenEngine:
                 "username": os.getenv("NAVIDROME_USER"),
                 "password": os.getenv("NAVIDROME_PASSWORD")
             },
-            "octofiestarr": {
+            "octofiesta": {
                 "url": os.getenv("OCTOFIESTA_URL")
             },
             "ai": {
@@ -1745,7 +1745,7 @@ class OctoGenEngine:
 
         # Log configuration (without secrets)
         logger.info("✓ Navidrome: %s", config['navidrome']['url'])
-        logger.info("✓ Octo-Fiesta: %s", config['octofiestarr']['url'])
+        logger.info("✓ Octo-Fiesta: %s", config['octofiesta']['url'])
         if config['lastfm']['enabled']:
             logger.info("✓ Last.fm enabled: %s", config['lastfm']['username'])
         if config['listenbrainz']['enabled']:
@@ -1803,7 +1803,7 @@ class OctoGenEngine:
         # Validate URLs
         for name, url in [
             ("Navidrome", self.config["navidrome"]["url"]),
-            ("Octo-Fiesta", self.config["octofiestarr"]["url"])
+            ("Octo-Fiesta", self.config["octofiesta"]["url"])
         ]:
             if not url:
                 errors.append(f"{name} URL is empty")
