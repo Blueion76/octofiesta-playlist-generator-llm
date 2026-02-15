@@ -44,3 +44,12 @@ octogen_last_run.json
 *.db
 *.db-journal
 *.log
+
+# Test scripts
+test_*.sh
+verify_*.py
+*_test.py
+
+# Temporary files
+*.tmp
+*.bak

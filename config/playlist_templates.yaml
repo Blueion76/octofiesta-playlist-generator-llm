@@ -1,0 +1,49 @@
+# Default Playlist Templates for OctoGen
+
+templates:
+  - name: Morning Motivation
+    song_count: 30
+    characteristics:
+      - upbeat
+      - energetic
+      - positive
+    mood_filters:
+      energy_min: 0.7
+      valence_min: 0.6
+    time_of_day: morning
+
+  - name: Focus Deep Work
+    song_count: 60
+    characteristics:
+      - instrumental
+      - ambient
+      - minimal vocals
+    genres:
+      - ambient
+      - classical
+      - electronic
+    mood_filters:
+      energy_max: 0.5
+      tempo_max: 120
+    time_of_day: day
+
+  - name: Evening Wind Down
+    song_count: 40
+    characteristics:
+      - relaxing
+      - calm
+      - mellow
+    mood_filters:
+      energy_max: 0.4
+      tempo_max: 100
+    time_of_day: evening
+
+  - name: Workout Intensity
+    song_count: 30
+    characteristics:
+      - high-energy
+      - intense
+      - driving
+    mood_filters:
+      energy_min: 0.8
+      tempo_min: 140

@@ -65,6 +65,21 @@ See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 - **Last.fm & ListenBrainz**: Optional integration
 - **Built-in scheduling**: No external cron needed! 🕐
 
+### 📊 Monitoring & Observability
+- **Prometheus metrics**: Track playlists, downloads, API calls, latency
+- **Web UI dashboard**: Real-time monitoring with auto-refresh
+- **Circuit breaker**: Prevents cascading failures to external APIs
+- **Structured logging**: JSON format support for log aggregation
+- **Health checks**: Monitor service status and performance
+
+### ⚙️ Advanced Features
+- **Modular architecture**: Clean, maintainable codebase
+- **Batch processing**: Configurable concurrency for downloads
+- **Docker secrets**: Secure credential management
+- **Playlist templates**: Customizable via YAML configuration
+- **Configuration validation**: Pydantic-based validation with helpful errors
+- **Progress indicators**: Visual feedback for long operations
+
 ---
 
 ## 🚀 Quick Start
@@ -451,30 +466,62 @@ spec:
 
 ## 📊 How It Works
 
+### Architecture
+
+OctoGen uses a modular architecture with clean separation of concerns:
+
+```
+octogen/
+├── api/              # External API clients (Navidrome, Last.fm, ListenBrainz, AudioMuse)
+├── ai/               # Multi-backend AI recommendation engine
+├── monitoring/       # Prometheus metrics + circuit breaker
+├── web/              # Flask dashboard
+├── storage/          # SQLite ratings cache
+├── models/           # Pydantic configuration validation
+├── playlist/         # Template system
+├── scheduler/        # Cron support
+└── utils/            # Auth, secrets, retry, batch processing, logging
+```
+
+### Workflow
+
 1. **Analyzes your Navidrome library**
    - Reads starred/favorited songs
    - Identifies top artists and genres
-   - Caches ratings (daily refresh)
+   - Caches ratings (daily refresh for performance)
 
 2. **Generates AI recommendations**
-   - Sends music profile to AI
+   - Sends music profile to AI (or uses AudioMuse/Last.fm/ListenBrainz)
    - Excludes low-rated songs (1-2 stars)
-   - Requests 11 themed playlists
+   - Requests 11 themed playlists with variety
 
-3. **Creates playlists in Navidrome**
-   - Searches library for each song
-   - Downloads missing tracks via Octo-Fiesta
-   - Adds songs to new playlists
+3. **Smart processing**
+   - Checks which songs exist in library (fuzzy matching)
+   - Detects and prevents duplicates
+   - Triggers downloads for missing tracks via Octo-Fiesta
+   - Processes in batches with configurable concurrency
 
-4. **Waits for next scheduled run** (if `SCHEDULE_CRON` is set)
-   - Calculates next run time
-   - Shows countdown in logs
-   - Automatically retries on errors
+4. **Creates playlists in Navidrome**
+   - Builds 11 themed playlists
+   - Mixes library favorites with discoveries
+   - Applies star rating filters
 
-5. **Optional integrations**
-   - Fetches Last.fm recommendations
-   - Gets ListenBrainz suggestions
-   - Merges all sources
+5. **Monitoring & scheduling**
+   - Records metrics (if enabled)
+   - Updates web dashboard (if enabled)
+   - Waits for next scheduled run (if configured)
+   - Automatically retries on errors with circuit breaker
+
+### Components
+
+- **Navidrome API**: Library reading, playlist creation, rating management
+- **AI Provider**: Personalized recommendations (Gemini, OpenAI, Groq, Ollama, etc.)
+- **Octo-Fiesta**: Automatic download of missing tracks
+- **SQLite Cache**: Rating storage with daily refresh
+- **Circuit Breaker**: Prevents cascading failures to external APIs
+- **Prometheus**: Metrics collection for monitoring (optional)
+- **Web Dashboard**: Real-time monitoring interface (optional)
+- **Scheduler**: Built-in cron for automatic execution
 
 ---
 
@@ -518,7 +565,9 @@ Mount a volume to persist data:
 
 ## 🔍 Monitoring
 
-### View Logs
+### Logs
+
+View container logs:
 ```bash
 # Real-time logs
 docker logs -f octogen
@@ -530,7 +579,71 @@ docker logs --tail 100 octogen
 docker logs octogen > octogen.log
 ```
 
+Logs show:
+- ✅ Successful operations (green checkmarks)
+- ⚠️ Warnings (yellow)
+- ❌ Errors (red)
+- 🕐 Scheduled run countdown
+- 📊 Statistics (playlists created, songs downloaded)
+
+### Prometheus Metrics (Optional)
+
+Enable metrics collection:
+```bash
+# In .env or docker-compose.yml
+METRICS_ENABLED=true
+METRICS_PORT=9090
+
+# Expose port
+docker run -p 9090:9090 ...
+```
+
+Access metrics:
+```bash
+# Metrics endpoint
+curl http://localhost:9090/metrics
+```
+
+Available metrics:
+- `octogen_playlists_created_total{source}` - Playlists created
+- `octogen_songs_downloaded_total` - Songs downloaded
+- `octogen_api_calls_total{service,status}` - API calls
+- `octogen_api_latency_seconds{service}` - API latency
+- `octogen_ai_tokens_used` - AI tokens consumed
+- `octogen_last_run_timestamp` - Last successful run
+- `octogen_last_run_duration_seconds` - Run duration
+
+Integrate with Prometheus:
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: 'octogen'
+    static_configs:
+      - targets: ['octogen:9090']
+```
+
+### Web UI Dashboard (Optional)
+
+Enable web dashboard for real-time monitoring:
+```bash
+# In .env or docker-compose.yml
+WEB_UI_ENABLED=true
+WEB_UI_PORT=5000
+
+# Expose port
+docker run -p 5000:5000 ...
+```
+
+Access dashboard at: `http://localhost:5000`
+
+Dashboard shows:
+- Real-time status and health
+- Statistics (playlists, downloads, failures)
+- Service health checks (Navidrome, Octo-Fiesta)
+- Auto-refreshes every 30 seconds
+
 ### Check Status
+
 ```bash
 # Container status
 docker ps -a | grep octogen
@@ -538,13 +651,10 @@ docker ps -a | grep octogen
 # Resource usage
 docker stats octogen
 
-# Inspect container
-docker inspect octogen
-```
+# Health check file
+docker exec octogen cat /data/health.json
 
-### Verify Scheduler
-```bash
-# Check if scheduler is running
+# Verify scheduler
 docker logs octogen | grep "SCHEDULER"
 
 # See next run time
@@ -555,6 +665,7 @@ docker logs octogen | grep "Timezone:"
 ```
 
 ### Verify Data
+
 ```bash
 # Check data directory
 docker exec octogen ls -lh /data
@@ -633,7 +744,7 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 ## 📚 Documentation
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
-- **[ENV_VARS.md](ENV_VARS.md)** - Complete variable reference (26 variables)
+- **[ENV_VARS.md](ENV_VARS.md)** - Complete environment variables reference (44 variables)
 
 ---
 
