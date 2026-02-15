@@ -1659,7 +1659,6 @@ class OctoGenEngine:
         # Initialize AudioMuse client if enabled
         self.audiomuse_client = None
         if self.config.get("audiomuse", {}).get("enabled", False):
-            from audiomuse_client import AudioMuseClient
             audiomuse_url = self.config["audiomuse"]["url"]
             audiomuse_client = AudioMuseClient(
                 base_url=audiomuse_url,
