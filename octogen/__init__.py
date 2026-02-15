@@ -6,7 +6,4 @@ Modular architecture for maintainability and extensibility.
 __version__ = "2.0.0"
 __author__ = "OctoGen Contributors"
 
-# Export main entry point and key classes
-from octogen.main import main, OctoGenEngine
-
 __all__ = ["main", "OctoGenEngine"]
