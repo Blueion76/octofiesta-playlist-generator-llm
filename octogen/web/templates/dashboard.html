@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OctoGen Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h2 {
+            color: #333;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4caf50;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-indicator.warning {
+            background: #ff9800;
+        }
+        
+        .status-indicator.error {
+            background: #f44336;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stat:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #666;
+        }
+        
+        .stat-value {
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .refresh-info {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 OctoGen Dashboard</h1>
+            <p class="subtitle">AI-Powered Music Discovery Engine</p>
+        </header>
+        
+        <div class="dashboard">
+            <div class="card">
+                <h2>System Status</h2>
+                <div class="status">
+                    <div class="status-indicator" id="status-indicator"></div>
+                    <span id="status-text">Loading...</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Last Run:</span>
+                    <span class="stat-value" id="last-run">-</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Next Run:</span>
+                    <span class="stat-value" id="next-run">-</span>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Statistics</h2>
+                <div class="stat">
+                    <span class="stat-label">Playlists Created:</span>
+                    <span class="stat-value" id="playlists-count">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Songs Downloaded:</span>
+                    <span class="stat-value" id="songs-downloaded">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Failed Downloads:</span>
+                    <span class="stat-value" id="songs-failed">0</span>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Service Health</h2>
+                <div class="status">
+                    <div class="status-indicator" id="navidrome-indicator"></div>
+                    <span>Navidrome: <span id="navidrome-status">Unknown</span></span>
+                </div>
+                <div class="status">
+                    <div class="status-indicator" id="octofiesta-indicator"></div>
+                    <span>Octo-Fiesta: <span id="octofiesta-status">Unknown</span></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="refresh-info">
+            Page refreshes automatically every 30 seconds
+        </div>
+    </div>
+    
+    <script>
+        function updateDashboard() {
+            // Fetch status
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('status-text').textContent = data.status || 'Unknown';
+                    document.getElementById('last-run').textContent = data.last_run || 'Never';
+                    document.getElementById('next-run').textContent = data.next_run || 'Not scheduled';
+                    
+                    const indicator = document.getElementById('status-indicator');
+                    indicator.className = 'status-indicator ' + (data.status === 'running' ? '' : 'warning');
+                })
+                .catch(err => {
+                    console.error('Failed to fetch status:', err);
+                });
+            
+            // Fetch stats
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('playlists-count').textContent = data.playlists_created || 0;
+                    document.getElementById('songs-downloaded').textContent = data.songs_downloaded || 0;
+                    document.getElementById('songs-failed').textContent = data.songs_failed || 0;
+                })
+                .catch(err => {
+                    console.error('Failed to fetch stats:', err);
+                });
+            
+            // Fetch health
+            fetch('/api/health')
+                .then(r => r.json())
+                .then(data => {
+                    const services = data.services || {};
+                    
+                    document.getElementById('navidrome-status').textContent = services.navidrome || 'Unknown';
+                    const navIndicator = document.getElementById('navidrome-indicator');
+                    navIndicator.className = 'status-indicator ' + 
+                        (services.navidrome === 'healthy' ? '' : 'warning');
+                    
+                    document.getElementById('octofiesta-status').textContent = services.octofiesta || 'Unknown';
+                    const octoIndicator = document.getElementById('octofiesta-indicator');
+                    octoIndicator.className = 'status-indicator ' + 
+                        (services.octofiesta === 'healthy' ? '' : 'warning');
+                })
+                .catch(err => {
+                    console.error('Failed to fetch health:', err);
+                });
+        }
+        
+        // Initial update
+        updateDashboard();
+        
+        // Refresh every 30 seconds
+        setInterval(updateDashboard, 30000);
+    </script>
+</body>
+</html>
