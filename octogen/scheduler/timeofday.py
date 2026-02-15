@@ -213,6 +213,18 @@ def get_period_playlist_size() -> int:
 # Time-Gating Functions for Designated Generation Times
 # ============================================================================
 
+def _parse_iso_timestamp(timestamp_str: str) -> datetime:
+    """Parse ISO timestamp string to datetime object.
+    
+    Args:
+        timestamp_str: ISO format timestamp string
+        
+    Returns:
+        Timezone-aware datetime object
+    """
+    return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+
+
 def get_period_target_hour(period: str) -> int:
     """Get the target generation hour for a given period.
     
@@ -241,7 +253,7 @@ def is_within_generation_window(target_hour: int, tolerance_minutes: int = 30) -
     Returns:
         True if current time is within the generation window
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     current_hour = now.hour
     current_minute = now.minute
     
@@ -303,7 +315,7 @@ def should_generate_period_playlist_now(period: Optional[str] = None, data_dir: 
                 last_generated_str = data.get("last_generated")
                 
                 if last_generated_str:
-                    last_generated = datetime.fromisoformat(last_generated_str.replace('Z', '+00:00'))
+                    last_generated = _parse_iso_timestamp(last_generated_str)
                     now = datetime.now(timezone.utc)
                     
                     # Don't regenerate if we generated for this period within the last hour
@@ -359,7 +371,7 @@ def should_generate_regular_playlists(data_dir: Optional[Path] = None) -> Tuple[
                 last_generated_str = data.get("last_generated")
                 
                 if last_generated_str:
-                    last_generated = datetime.fromisoformat(last_generated_str.replace('Z', '+00:00'))
+                    last_generated = _parse_iso_timestamp(last_generated_str)
                     now = datetime.now(timezone.utc)
                     
                     # Don't regenerate if we generated within the last hour

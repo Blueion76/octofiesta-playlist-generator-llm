@@ -908,9 +908,10 @@ CRITICAL RULES:
                 logger.info("=" * 70)
                 logger.info(f"Reason: {reason}")
                 logger.info("=" * 70)
+                # Initialize all_playlists for playlist generation
+                all_playlists = {}
 
             # Generate AI playlists (only if AI is configured and should_generate_regular is True)
-            all_playlists = {}
             if should_generate_regular and self.ai and favorited_songs:
                 logger.debug("AI engine is configured, proceeding with AI generation")
                 # Continue with normal AI generation
