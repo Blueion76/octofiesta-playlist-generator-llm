@@ -38,7 +38,7 @@ ENV PATH=/root/.local/bin:$PATH
 WORKDIR /app
 
 # Copy application code
-COPY octogen.py .
+COPY *.py .
 
 # Create data directory with proper permissions
 RUN mkdir -p /data && chmod 755 /data

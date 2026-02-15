@@ -131,12 +131,21 @@ Open Navidrome and find your new playlists! 🎉
 
 ## 🐳 Docker Tags
 
-OctoGen uses different Docker tags for different use cases:
+OctoGen uses automated CI/CD to build and publish Docker images:
 
 - **`dev`** - Automatically built from latest main branch (bleeding edge, may be unstable)
 - **`latest`** - Manually published stable releases (recommended for production)
 - **`vX.Y.Z`** - Semantic version tags for specific releases
 - **`sha-XXXXXXX`** - Build from specific commit (for debugging)
+
+### Automated Builds
+
+Docker images are automatically built and pushed to Docker Hub when:
+- Code is pushed to `main` branch (creates `dev` and `sha-XXXXXXX` tags)
+- A release tag (`v*.*.*`) is created (creates version tags)
+- Manual workflow dispatch is triggered
+
+The CI/CD pipeline builds multi-platform images (linux/amd64 and linux/arm64) using GitHub Actions.
 
 ### Using Development Builds
 
@@ -637,6 +646,17 @@ Contributions welcome! Please:
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+### For Maintainers: Docker Hub Setup
+
+To enable automated Docker image publishing, repository maintainers need to configure these secrets in GitHub:
+
+1. Go to **Settings** → **Secrets and variables** → **Actions**
+2. Add the following repository secrets:
+   - `DOCKERHUB_USERNAME` - Your Docker Hub username
+   - `DOCKERHUB_TOKEN` - Docker Hub access token (create at [hub.docker.com/settings/security](https://hub.docker.com/settings/security))
+
+Once configured, the workflow will automatically build and push images on every push to main and on releases.
 
 ---
 
