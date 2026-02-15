@@ -371,12 +371,12 @@ MIN_RUN_INTERVAL_HOURS=6
 - Ensures schedule is properly respected
 
 ---
-# Result: Allowed to run (only needs 1h cooldown)
+### Result: Allowed to run (only needs 1h cooldown)
 
-# Scenario 3: All services failed
-# Last run: 30 minutes ago, all services failed
-# Result: Blocked (needs 1h cooldown)
-```
+## Scenario 3: All services failed
+### Last run: 30 minutes ago, all services failed
+### Result: Blocked (needs 1h cooldown)
+
 
 **Why This Matters**:
 - **AI rate limits** don't prevent external service refreshes
@@ -1184,20 +1184,6 @@ For production, use Docker secrets:
 echo "your_password" | docker secret create navidrome_password -
 ```
 
-### Environment Priority
-If same variable set multiple ways:
-1. Command line (`-e VAR=value`)
-2. Environment file (`--env-file .env`)
-3. Default value in code
-
-### Scheduling Best Practices
-- ✅ **DO**: Use `SCHEDULE_CRON` with `TZ` for automatic updates
-- ✅ **DO**: Set `restart: unless-stopped` in Docker Compose
-- ✅ **DO**: Run daily during off-peak hours (2-2 AM)
-- ✅ **DO**: Monitor logs after first scheduled run
-- ❌ **DON'T**: Schedule too frequently (< 6 hours)
-- ❌ **DON'T**: Forget to set timezone (defaults to UTC!)
-- ❌ **DON'T**: Use shell loops anymore (built-in scheduler is better)
 
 ### Troubleshooting Scheduling
 ```bash
