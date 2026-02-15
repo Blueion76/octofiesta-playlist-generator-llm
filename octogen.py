@@ -1980,11 +1980,28 @@ class OctoGenEngine:
             for service_name, service_info in self.service_tracker.services.items():
                 services_data[service_name] = service_info
             
+            # Calculate next scheduled run if SCHEDULE_CRON is set
+            next_scheduled_run = None
+            schedule_cron = os.getenv("SCHEDULE_CRON", "").strip()
+            
+            if schedule_cron and schedule_cron.lower() not in ("manual", "false", "no", "off", "disabled"):
+                try:
+                    # Import croniter if available
+                    if CRONITER_AVAILABLE:
+                        from croniter import croniter
+                        cron = croniter(schedule_cron, now)
+                        next_run_time = cron.get_next(datetime)
+                        next_scheduled_run = next_run_time.isoformat()
+                        logger.debug(f"Next scheduled run: {next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                except Exception as e:
+                    logger.warning(f"Could not calculate next scheduled run: {e}")
+            
             with open(run_tracker_file, 'w') as f:
                 json.dump({
                     'last_run_timestamp': now.isoformat(),
                     'last_run_date': now.strftime("%Y-%m-%d"),
                     'last_run_formatted': now.strftime("%Y-%m-%d %H:%M:%S"),
+                    'next_scheduled_run': next_scheduled_run,  # ✅ Added this!
                     'services': services_data
                 }, f, indent=2)
             logger.info("✓ Recorded successful run timestamp with service tracking")
