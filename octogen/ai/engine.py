@@ -519,7 +519,48 @@ CRITICAL RULES:
                              thoughts, thinking_budget)
 
         return response.text
+        
+    def _generate_with_openai(
+        self,
+        top_artists: List[str],
+        top_genres: List[str],
+        favorited_songs: List[Dict],
+        low_rated_songs: Optional[List[Dict]] = None,
+    ) -> str:
+        """Generate playlists using OpenAI library.
+        
+        Args:
+            top_artists: List of top artist names
+            top_genres: List of top genres
+            favorited_songs: List of favorited songs
+            low_rated_songs: Optional list of low-rated songs
+            
+        Returns:
+            JSON response string
+        """
+        cached_context = self._build_cached_context(
+            top_artists, top_genres, favorited_songs, low_rated_songs
+        )
 
+        # Get time-of-day context
+        time_context = self.get_time_context()
+        if time_context:
+            logger.info(f"🕐 Time context: {time_context.get('description')} - {time_context.get('mood')}")
+        
+        task_prompt = self._build_task_prompt(top_genres, time_context)
+        full_prompt = f"{cached_context}\n\n{task_prompt}"
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": full_prompt}],
+            temperature=0.8,
+            max_tokens=self.max_output_tokens,
+            response_format={"type": "json_object"},
+            timeout=120,
+        )
+
+        return response.choices[0].message.content.strip()
+        
     def generate_all_playlists(
         self,
         top_artists: List[str],
