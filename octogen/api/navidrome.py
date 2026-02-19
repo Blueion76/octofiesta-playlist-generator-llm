@@ -324,6 +324,29 @@ class NavidromeAPI:
         text = re.sub(r'\s+ft\.?\s+.*$', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\s+featuring\s+.*$', '', text, flags=re.IGNORECASE)
         return text.strip()
+
+    def get_all_playlists(self) -> List[Dict]:
+        """Get all playlists from Navidrome.
+        
+        Returns:
+            List of playlist dictionaries with id and name
+        """
+        response = self._request("getPlaylists")
+        if not response:
+            return []
+        return response.get("playlists", {}).get("playlist", [])
+    
+    def delete_playlist(self, playlist_id: str) -> bool:
+        """Delete a playlist by ID.
+        
+        Args:
+            playlist_id: Playlist identifier
+            
+        Returns:
+            True if successful
+        """
+        response = self._request("deletePlaylist", {"id": playlist_id})
+        return response is not None
     
     def _normalize_for_comparison(self, text: str, preserve_version: bool = False) -> str:
         """Normalize text for comparison.
