@@ -100,7 +100,7 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
     contexts = {
         "morning": {
             "period": "morning",
-            "description": "Morning Motivation",
+            "description": "Morning Mix",
             "mood": "upbeat, energetic, positive vibes",
             "energy": "high",
             "guidance": "Focus on uplifting, motivational music to start the day. "
@@ -108,7 +108,7 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
         },
         "afternoon": {
             "period": "afternoon",
-            "description": "Afternoon Focus",
+            "description": "Afternoon Flow",
             "mood": "balanced, productive, moderate energy",
             "energy": "medium",
             "guidance": "Select balanced tracks for productivity and focus. "
@@ -116,7 +116,7 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
         },
         "evening": {
             "period": "evening",
-            "description": "Evening Unwind",
+            "description": "Evening Chill",
             "mood": "chill, relaxing, wind-down music",
             "energy": "low-medium",
             "guidance": "Choose relaxing, soothing tracks for unwinding. "
@@ -124,7 +124,7 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
         },
         "night": {
             "period": "night",
-            "description": "Midnight Mood",
+            "description": "Night Vibes",
             "mood": "ambient, calm, sleep-friendly",
             "energy": "low",
             "guidance": "Select very calm, ambient music suitable for sleep or late-night relaxation. "
