@@ -69,17 +69,17 @@ def get_period_display_name(period: str) -> str:
     morning_start = int(os.getenv("TIMEOFDAY_MORNING_START", "6"))
     morning_end = int(os.getenv("TIMEOFDAY_MORNING_END", "12"))
     afternoon_start = int(os.getenv("TIMEOFDAY_AFTERNOON_START", "12"))
-    afternoon_end = int(os.getenv("TIMEOFDAY_AFTERNOON_END", "18"))
-    evening_start = int(os.getenv("TIMEOFDAY_EVENING_START", "18"))
-    evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "24"))
-    night_start = int(os.getenv("TIMEOFDAY_NIGHT_START", "0"))
+    afternoon_end = int(os.getenv("TIMEOFDAY_AFTERNOON_END", "16"))
+    evening_start = int(os.getenv("TIMEOFDAY_EVENING_START", "16"))
+    evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "22"))
+    night_start = int(os.getenv("TIMEOFDAY_NIGHT_START", "22"))
     night_end = int(os.getenv("TIMEOFDAY_NIGHT_END", "6"))
 
     period_names = {
-        "morning": f"Morning Mix ({morning_start} AM - {morning_end} PM)",
-        "afternoon": f"Afternoon Flow ({afternoon_start} PM - {afternoon_end} PM)",
-        "evening": f"Evening Chill ({evening_start} PM - {evening_end} PM)",
-        "night": f"Night Vibes ({night_start} AM - {night_end} AM)"
+        "morning": f"Morning Mix",
+        "afternoon": f"Afternoon Flow",
+        "evening": f"Evening Chill",
+        "night": f"Night Vibes"
     }
 
     return period_names.get(period, f"{period.capitalize()} Playlist")
@@ -100,7 +100,7 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
     contexts = {
         "morning": {
             "period": "morning",
-            "description": "Morning (6 AM - 12 PM)",
+            "description": "Morning Motivation",
             "mood": "upbeat, energetic, positive vibes",
             "energy": "high",
             "guidance": "Focus on uplifting, motivational music to start the day. "
@@ -108,7 +108,7 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
         },
         "afternoon": {
             "period": "afternoon",
-            "description": "Afternoon (12 PM - 6 PM)",
+            "description": "Afternoon Focus",
             "mood": "balanced, productive, moderate energy",
             "energy": "medium",
             "guidance": "Select balanced tracks for productivity and focus. "
@@ -116,7 +116,7 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
         },
         "evening": {
             "period": "evening",
-            "description": "Evening (6 PM - 12 AM)",
+            "description": "Evening Unwind",
             "mood": "chill, relaxing, wind-down music",
             "energy": "low-medium",
             "guidance": "Choose relaxing, soothing tracks for unwinding. "
@@ -124,7 +124,7 @@ def get_time_context(period: Optional[str] = None) -> Dict[str, str]:
         },
         "night": {
             "period": "night",
-            "description": "Night (12 AM - 6 AM)",
+            "description": "Midnight Mood",
             "mood": "ambient, calm, sleep-friendly",
             "energy": "low",
             "guidance": "Select very calm, ambient music suitable for sleep or late-night relaxation. "
