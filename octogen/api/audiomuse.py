@@ -59,8 +59,8 @@ class AudioMuseClient:
             response = requests.post(endpoint, json=payload, timeout=60)
             response.raise_for_status()
             
-            data = response.json()
-            songs = data.get('query_results', [])
+            response_data = data.get('response', data)
+            songs = response_data.get('query_results', [])
             
             logger.info(f"AudioMuse-AI returned {len(songs)} songs for request: '{user_request}'")
             if len(songs) < num_songs:
