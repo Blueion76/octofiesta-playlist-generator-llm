@@ -1225,7 +1225,7 @@ CRITICAL RULES:
                         logger.warning(f"Could not delete old period playlists: {e}")
                     
                     # Generate the time-period playlist
-                    # NEW REQUIREMENT: Use AudioMuse for 25 songs, LLM for 5 songs
+                    # Use AudioMuse for 25 songs, LLM for 5 songs
                     period_songs = []
                     
                     # Get 25 songs from AudioMuse if enabled
