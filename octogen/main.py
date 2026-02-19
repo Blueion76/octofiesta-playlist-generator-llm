@@ -307,13 +307,6 @@ class OctoGenEngine:
             elif url.endswith("/"):
                 logger.warning("%s URL ends with '/'. This will be stripped automatically.", name)
         
-        # Validate AI API key only if AI is being used
-        if has_ai:
-            if self.config["ai"]["api_key"] in ["your-api-key-here", "changeme", "INSERT_KEY_HERE"]:
-                errors.append("AI_API_KEY appears to be a placeholder - please set a real API key")
-            elif len(self.config["ai"]["api_key"]) < 20:
-                errors.append("AI_API_KEY seems too short - verify it's a valid key")
-        
         # Validate AI model for backend (only if AI is configured)
         if has_ai:
             backend = self.config["ai"]["backend"]
