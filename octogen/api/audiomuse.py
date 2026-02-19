@@ -52,6 +52,7 @@ class AudioMuseClient:
                 payload["openai_api_key"] = self.api_key
             elif self.ai_provider == "MISTRAL":
                 payload["mistral_api_key"] = self.api_key
+        payload = {k: v for k, v in payload.items() if v is not None and str(v).lower() != "null"}
         
         try:
             logger.debug(f"AudioMuse API request: {endpoint}")
