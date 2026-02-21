@@ -761,7 +761,7 @@ Contributions welcome! Just create a pull request.
 
 - **[Navidrome](https://www.navidrome.org/)** - Open-source music server
 - **[Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta)** - Automated music downloader
-- **[LastFM](https://www.LastFM/)** - Music discovery API
+- **[LastFM](https://www.last.fm/)** - Music discovery API
 - **[ListenBrainz](https://listenbrainz.org/)** - Open music metadata
 - **[AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI)** - In-depth analysis of your music library
 
