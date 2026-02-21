@@ -1,10 +1,8 @@
-# 🎵 OctoGen - AI-Powered Music Discovery for Navidrome
+# 🎵 OctoGen - Automatic Spotify-like Playlists for Navidrome
 
-[![Docker Build](https://github.com/Blueion76/Octogen/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Blueion76/Octogen/actions/workflows/docker-publish.yml)
-[![Docker Hub](https://img.shields.io/docker/v/blueion76/octogen?sort=semver&label=docker%20hub)](https://hub.docker.com/r/blueion76/octogen)
 [![Docker Pulls](https://img.shields.io/docker/pulls/blueion76/octogen?logo=docker)](https://hub.docker.com/r/blueion76/octogen)
 
-**OctoGen** automatically generates personalized music playlists for your Navidrome server using AI. It creates 11 curated playlists with over 350 songs, seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
+**OctoGen** automatically generates personalized music playlists for your Navidrome server using an LLM, LastFM, ListenBrainz and/or AudioMuse-AI seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
 
 Built with AI assistance. Contributions and pull requests welcome!
 
@@ -12,8 +10,8 @@ Built with AI assistance. Contributions and pull requests welcome!
 
 ## ✨ Features
 
-### 🤖 AI-Powered Recommendations
-- **Multiple AI providers**: Gemini, OpenAI, Groq, Ollama, OpenRouter
+### 🤖 LLM-Powered Recommendations
+- **Multiple LLM providers**: Gemini and OpenAI-compatible API-supported providers
 - **Smart context caching**: Efficient, low-cost API usage
 - **Variety seed**: Different recommendations every day
 
@@ -24,8 +22,30 @@ Built with AI assistance. Contributions and pull requests welcome!
 - **Workout Energy** (30 songs) - High-energy music
 - **Focus Flow** (30 songs) - Ambient/instrumental
 - **Drive Time** (30 songs) - Upbeat driving music
+- **Time-of-Day Playlist** (30 songs) - Mood-matched to current time period
 
-**Total: 11 playlists, 350+ songs automatically curated!**
+**Total: 12 playlists, 380+ songs automatically curated!**
+
+### 🕐 Time-of-Day Playlists
+
+Automatic mood-appropriate playlists that rotate based on time of day:
+
+- **Morning Mix (4 AM - 10 AM)**: Upbeat, energetic, positive vibes
+- **Afternoon Flow (10 AM - 4 PM)**: Balanced, productive, moderate energy
+- **Evening Chill (4 PM - 10 PM)**: Relaxing, wind-down music
+- **Night Vibes (10 PM - 4 AM)**: Ambient, calm, sleep-friendly
+
+**Features**:
+- ✅ Hybrid generation: 25 songs from AudioMuse-AI + 5 from LLM
+- ✅ Auto-rotates when time period changes
+- ✅ Auto-deletes previous period's playlist
+- ✅ Configurable time boundaries
+- ✅ LLM prompts enhanced with time-of-day context
+
+Enable with:
+```bash
+TIMEOFDAY_ENABLED=true
+```
 
 ### 🎛️ Hybrid Mode (AudioMuse-AI Integration)
 
@@ -46,6 +66,7 @@ AUDIOMUSE_URL=http://localhost:8000
 - **Workout Energy**: High-energy music (25 AudioMuse + 5 LLM)
 - **Focus Flow**: Ambient/instrumental (25 AudioMuse + 5 LLM)
 - **Drive Time**: Upbeat driving music (25 AudioMuse + 5 LLM)
+- **Time-of-Day Playlist**: Depends on time of day (25 AudioMuse + 5 LLM)
 
 **LLM-only playlists** (always):
 - **Discovery**: New discoveries (50 LLM songs)
@@ -62,8 +83,23 @@ See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 - **Automatic downloads**: Missing songs fetched via Octo-Fiesta
 - **Daily cache**: Efficient library scanning
 - **Async operations**: Fast, parallel processing
-- **Last.fm & ListenBrainz**: Optional integration
-- **Built-in scheduling**: No external cron needed! 🕐
+- **LastFM, ListenBrainz & AudioMuse-AI**: Optional integrations
+- **Built-in scheduling**: No external cron needed 🕐
+
+### 📊 Monitoring & Observability
+- **Web UI dashboard**: Real-time service health monitoring with auto-refresh
+- **Prometheus metrics**: Track playlists, downloads, API calls, latency
+- **Circuit breaker**: Prevents cascading failures to external APIs
+- **Structured logging**: JSON format support for log aggregation
+- **Health checks**: Monitor Navidrome, Octo-Fiesta, LLM, AudioMuse, LastFM, ListenBrainz
+
+### ⚙️ Advanced Features
+- **Modular architecture**: Clean, maintainable codebase
+- **Batch processing**: Configurable concurrency for downloads
+- **Docker secrets**: Secure credential management
+- **Playlist templates**: Customizable via YAML configuration
+- **Configuration validation**: Pydantic-based validation with helpful errors
+- **Progress indicators**: Visual feedback for long operations
 
 ---
 
@@ -73,9 +109,9 @@ See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 - **Navidrome** server running
 - **Octo-Fiesta** configured for downloads
 - **At least one music source**:
-  - AI API key (Gemini recommended - free tier available), OR
+  - LLM API key (Gemini recommended - free tier available), OR
   - AudioMuse-AI configured, OR
-  - Last.fm enabled, OR
+  - LastFM enabled, OR
   - ListenBrainz enabled
 
 ### 1. Get API Key (Optional - if using LLM)
@@ -125,27 +161,10 @@ docker logs -f octogen
 ### 4. Check Your Navidrome
 Open Navidrome and find your new playlists! 🎉
 
-**Playlists update automatically at 2 AM daily!**
+**Playlists update automatically at the time(s) you set your cronjob**
 
 ---
 
-## 🐳 Docker Tags
-
-OctoGen uses automated CI/CD to build and publish Docker images:
-
-- **`dev`** - Automatically built from latest main branch (bleeding edge, may be unstable)
-- **`latest`** - Manually published stable releases (recommended for production)
-- **`vX.Y.Z`** - Semantic version tags for specific releases
-- **`sha-XXXXXXX`** - Build from specific commit (for debugging)
-
-### Automated Builds
-
-Docker images are automatically built and pushed to Docker Hub when:
-- Code is pushed to `main` branch (creates `dev` and `sha-XXXXXXX` tags)
-- A release tag (`v*.*.*`) is created (creates version tags)
-- Manual workflow dispatch is triggered
-
-The CI/CD pipeline builds multi-platform images (linux/amd64 and linux/arm64) using GitHub Actions.
 
 ### Using Development Builds
 
@@ -160,16 +179,6 @@ For production use (recommended):
 ```bash
 docker pull blueion76/octogen:latest
 ```
-
-### Publishing a Stable Release
-
-Maintainers can publish to `latest` tag:
-1. Go to **Actions** → **Build and Push Docker Image**
-2. Click **"Run workflow"**
-3. Check **"Publish as latest tag (stable release)"**
-4. Click **"Run workflow"**
-
----
 
 ## 🐳 Docker Compose (Recommended)
 
@@ -192,7 +201,7 @@ services:
       AI_API_KEY: ${GEMINI_API_KEY}
 
       # Scheduling 
-      SCHEDULE_CRON: "0 2 * * *"  # Daily at 2 AM
+      SCHEDULE_CRON: "0 2,4,10,16,22 * * *"  # Daily at 2 AM, 4 AM, 10 AM, 4 PM and 10 PM
       TZ: America/Chicago
 
       # Optional
@@ -212,6 +221,65 @@ docker-compose logs -f octogen
 
 ---
 
+## 🌐 Web UI Dashboard
+
+OctoGen includes a real-time monitoring dashboard accessible at `http://localhost:5000`.
+
+### Features
+
+- **Service Health Monitoring**: Real-time status for all connected services
+  - Navidrome (connection, library stats)
+  - Octo-Fiesta (connection status)
+  - LLM Engine (backend, model, status)
+  - AudioMuse-AI (enabled/disabled, health)
+  - LastFM (enabled/disabled, connection)
+  - ListenBrainz (enabled/disabled, connection)
+
+- **System Statistics**:
+  - Playlists created
+  - Songs rated
+  - Low-rated song count
+  - Cache size
+  - Last run timestamp
+  - Next scheduled run
+
+- **REST API**:
+  - `GET /api/health` - Overall health status
+  - `GET /api/services` - Detailed service information
+  - `GET /api/stats` - System statistics
+  - `GET /api/status` - Current run status
+
+- **Auto-refresh**: Dashboard updates every 30 seconds
+
+### Configuration
+
+```bash
+# Enable web UI (enabled by default)
+WEB_ENABLED=true
+
+# Configure port
+WEB_PORT=5000
+```
+
+### Docker Setup
+
+Expose port 5000 in your docker-compose.yml:
+
+```yaml
+services:
+  octogen:
+    image: blueion76/octogen:latest
+    ports:
+      - "5000:5000"  # Web UI dashboard
+    environment:
+      WEB_ENABLED: "true"
+      WEB_PORT: "5000"
+```
+
+Access the dashboard at `http://localhost:5000` after starting the container.
+
+---
+
 ## 🎨 AudioMuse-AI Setup (Optional)
 
 To enable hybrid playlist generation with sonic analysis:
@@ -220,21 +288,6 @@ To enable hybrid playlist generation with sonic analysis:
 
 Follow the [AudioMuse-AI documentation](https://github.com/NeptuneHub/AudioMuse-AI) to deploy:
 
-```yaml
-# docker-compose.yml excerpt
-services:
-  audiomuse-flask:
-    image: ghcr.io/neptunehub/audiomuse-ai:latest
-    ports:
-      - "8000:8000"
-    environment:
-      SERVICE_TYPE: "flask"
-      MEDIASERVER_TYPE: "navidrome"
-      NAVIDROME_URL: "http://navidrome:4533"
-      NAVIDROME_USER: "admin"
-      NAVIDROME_PASSWORD: "${NAVIDROME_PASSWORD}"
-      # ... other AudioMuse config
-```
 
 ### 2. Run Initial Analysis
 
@@ -262,8 +315,6 @@ AUDIOMUSE_SONGS_PER_MIX=25  # Songs from AudioMuse (default: 25)
 LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
 ```
 
-**Note:** Total songs per daily mix remains 30.
-
 ---
 
 ## 🔧 Configuration
@@ -280,7 +331,7 @@ LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
 **Note**: At least one music source must also be configured:
 - `AI_API_KEY` (for LLM-based playlists), OR
 - `AUDIOMUSE_ENABLED=true` (for AudioMuse-AI sonic analysis), OR  
-- `LASTFM_ENABLED=true` (for Last.fm recommendations), OR
+- `LASTFM_ENABLED=true` (for LastFM recommendations), OR
 - `LISTENBRAINZ_ENABLED=true` (for ListenBrainz recommendations)
 
 ### Optional Configuration
@@ -298,7 +349,7 @@ LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
 
 ---
 
-## 🎯 AI Provider Examples
+## 🎯 LLM Provider Examples
 
 ### Gemini (Recommended - Free Tier)
 ```bash
@@ -344,7 +395,7 @@ AI_API_KEY=your_openrouter_api_key
 
 ## 🕐 Automatic Scheduling 
 
-OctoGen now includes **built-in cron scheduling** - no external cron daemon or scripts needed!
+OctoGen includes **built-in cron scheduling** 
 
 ### Quick Setup
 
@@ -415,66 +466,66 @@ TZ=Australia/Sydney        # Australia
 
 Leave `SCHEDULE_CRON` unset or set to `manual`:
 
-```bash
-# Run once and exit
-docker run --rm --env-file .env blueion76/octogen:latest
-```
-
-### Advanced: Kubernetes CronJob
-
-If you prefer Kubernetes native scheduling:
-
-```yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: octogen
-spec:
-  schedule: "0 2 * * *"
-  timeZone: "America/Chicago"  # Kubernetes 1.25+
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-          - name: octogen
-            image: blueion76/octogen:latest
-            envFrom:
-            - secretRef:
-                name: octogen-secrets
-          restartPolicy: OnFailure
-```
-
-**Note:** Built-in scheduling is recommended for simplicity!
-
 ---
 
 ## 📊 How It Works
 
+### Architecture
+
+OctoGen uses a modular architecture with clean separation of concerns:
+
+```
+octogen/
+├── api/              # External API clients (Navidrome, LastFM, ListenBrainz, AudioMuse)
+├── ai/               # Multi-backend LLM recommendation engine
+├── monitoring/       # Prometheus metrics + circuit breaker
+├── web/              # Flask dashboard
+├── storage/          # SQLite ratings cache
+├── models/           # Pydantic configuration validation
+├── playlist/         # Template system
+├── scheduler/        # Cron support
+└── utils/            # Auth, secrets, retry, batch processing, logging
+```
+
+### Workflow
+
 1. **Analyzes your Navidrome library**
    - Reads starred/favorited songs
    - Identifies top artists and genres
-   - Caches ratings (daily refresh)
+   - Caches ratings (daily refresh for performance)
 
-2. **Generates AI recommendations**
-   - Sends music profile to AI
+2. **Generates LLM recommendations**
+   - Sends music profile to LLM (or uses AudioMuse/LastFM/ListenBrainz)
    - Excludes low-rated songs (1-2 stars)
-   - Requests 11 themed playlists
+   - Requests 11 themed playlists with variety
 
-3. **Creates playlists in Navidrome**
-   - Searches library for each song
-   - Downloads missing tracks via Octo-Fiesta
-   - Adds songs to new playlists
+3. **Smart processing**
+   - Checks which songs exist in library (fuzzy matching)
+   - Detects and prevents duplicates
+   - Triggers downloads for missing tracks via Octo-Fiesta
+   - Processes in batches with configurable concurrency
 
-4. **Waits for next scheduled run** (if `SCHEDULE_CRON` is set)
-   - Calculates next run time
-   - Shows countdown in logs
-   - Automatically retries on errors
+4. **Creates playlists in Navidrome**
+   - Builds 11 themed playlists
+   - Mixes library favorites with discoveries
+   - Applies star rating filters
 
-5. **Optional integrations**
-   - Fetches Last.fm recommendations
-   - Gets ListenBrainz suggestions
-   - Merges all sources
+5. **Monitoring & scheduling**
+   - Records metrics (if enabled)
+   - Updates web dashboard (if enabled)
+   - Waits for next scheduled run (if configured)
+   - Automatically retries on errors with circuit breaker
+
+### Components
+
+- **Navidrome API**: Library reading, playlist creation, rating management
+- **LLM Provider**: Personalized recommendations (Gemini, OpenAI, Groq, Ollama, etc.)
+- **Octo-Fiesta**: Automatic download of missing tracks
+- **SQLite Cache**: Rating storage with daily refresh
+- **Circuit Breaker**: Prevents cascading failures to external APIs
+- **Prometheus**: Metrics collection for monitoring (optional)
+- **Web Dashboard**: Real-time monitoring interface (optional)
+- **Scheduler**: Built-in cron for automatic execution
 
 ---
 
@@ -505,7 +556,7 @@ OctoGen stores data in `/data`:
 /data/
 ├── octogen.log              # Application logs
 ├── octogen_cache.db         # Star ratings cache
-├── gemini_cache.json        # AI context cache
+├── gemini_cache.json        # LLM context cache
 └── octogen.lock             # Prevents duplicate runs
 ```
 
@@ -518,7 +569,9 @@ Mount a volume to persist data:
 
 ## 🔍 Monitoring
 
-### View Logs
+### Logs
+
+View container logs:
 ```bash
 # Real-time logs
 docker logs -f octogen
@@ -530,7 +583,71 @@ docker logs --tail 100 octogen
 docker logs octogen > octogen.log
 ```
 
+Logs show:
+- ✅ Successful operations (green checkmarks)
+- ⚠️ Warnings (yellow)
+- ❌ Errors (red)
+- 🕐 Scheduled run countdown
+- 📊 Statistics (playlists created, songs downloaded)
+
+### Prometheus Metrics (Optional)
+
+Enable metrics collection:
+```bash
+# In .env or docker-compose.yml
+METRICS_ENABLED=true
+METRICS_PORT=9090
+
+# Expose port
+docker run -p 9090:9090 ...
+```
+
+Access metrics:
+```bash
+# Metrics endpoint
+curl http://localhost:9090/metrics
+```
+
+Available metrics:
+- `octogen_playlists_created_total{source}` - Playlists created
+- `octogen_songs_downloaded_total` - Songs downloaded
+- `octogen_api_calls_total{service,status}` - API calls
+- `octogen_api_latency_seconds{service}` - API latency
+- `octogen_ai_tokens_used` - LLM tokens consumed
+- `octogen_last_run_timestamp` - Last successful run
+- `octogen_last_run_duration_seconds` - Run duration
+
+Integrate with Prometheus:
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: 'octogen'
+    static_configs:
+      - targets: ['octogen:9090']
+```
+
+### Web UI Dashboard (Optional)
+
+Enable web dashboard for real-time monitoring:
+```bash
+# In .env or docker-compose.yml
+WEB_UI_ENABLED=true
+WEB_UI_PORT=5000
+
+# Expose port
+docker run -p 5000:5000 ...
+```
+
+Access dashboard at: `http://localhost:5000`
+
+Dashboard shows:
+- Real-time status and health
+- Statistics (playlists, downloads, failures)
+- Service health checks (Navidrome, Octo-Fiesta)
+- Auto-refreshes every 30 seconds
+
 ### Check Status
+
 ```bash
 # Container status
 docker ps -a | grep octogen
@@ -538,13 +655,10 @@ docker ps -a | grep octogen
 # Resource usage
 docker stats octogen
 
-# Inspect container
-docker inspect octogen
-```
+# Health check file
+docker exec octogen cat /data/health.json
 
-### Verify Scheduler
-```bash
-# Check if scheduler is running
+# Verify scheduler
 docker logs octogen | grep "SCHEDULER"
 
 # See next run time
@@ -555,6 +669,7 @@ docker logs octogen | grep "Timezone:"
 ```
 
 ### Verify Data
+
 ```bash
 # Check data directory
 docker exec octogen ls -lh /data
@@ -622,7 +737,7 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 
 **Components:**
 - **Navidrome API**: Reads library, creates playlists
-- **AI Provider**: Generates recommendations
+- **LLM Provider**: Generates recommendations
 - **Octo-Fiesta**: Downloads missing tracks
 - **SQLite Cache**: Stores ratings (daily refresh)
 - **Logs**: Application activity
@@ -632,37 +747,13 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 
 ## 📚 Documentation
 
-- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
-- **[ENV_VARS.md](ENV_VARS.md)** - Complete variable reference (26 variables)
+- **[ENV_VARS.md](ENV_VARS.md)** - Complete environment variables reference
 
 ---
 
 ## 🤝 Contributing
 
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### For Maintainers: Docker Hub Setup
-
-To enable automated Docker image publishing, repository maintainers need to configure these secrets in GitHub:
-
-1. Go to **Settings** → **Secrets and variables** → **Actions**
-2. Add the following repository secrets:
-   - `DOCKERHUB_USERNAME` - Your Docker Hub username
-   - `DOCKERHUB_TOKEN` - Docker Hub access token (create at [hub.docker.com/settings/security](https://hub.docker.com/settings/security))
-
-Once configured, the workflow will automatically build and push images on every push to main and on releases.
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Contributions welcome! Just create a pull request.
 
 ---
 
@@ -670,8 +761,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **[Navidrome](https://www.navidrome.org/)** - Open-source music server
 - **[Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta)** - Automated music downloader
-- **[Google Gemini](https://ai.google.dev/)** - AI recommendations
-- **[Last.fm](https://www.last.fm/)** - Music discovery API
+- **[LastFM](https://www.LastFM/)** - Music discovery API
 - **[ListenBrainz](https://listenbrainz.org/)** - Open music metadata
 - **[AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI)** - In-depth analysis of your music library
 

@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
-"""AudioMuse-AI Client for Octogen
+"""AudioMuse-AI client for sonic analysis-based playlist generation"""
 
-Provides integration with AudioMuse-AI for sonic analysis-based playlist generation.
-"""
-
-import requests
 import logging
+import requests
 from typing import List, Dict, Optional
+
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +12,7 @@ class AudioMuseClient:
     """Client for interacting with AudioMuse-AI API"""
     
     def __init__(self, base_url: str, ai_provider: str, ai_model: str, api_key: Optional[str] = None):
-        """
-        Initialize AudioMuse-AI client
+        """Initialize AudioMuse-AI client
         
         Args:
             base_url: AudioMuse-AI server URL
@@ -30,8 +26,7 @@ class AudioMuseClient:
         self.api_key = api_key
         
     def generate_playlist(self, user_request: str, num_songs: int = 25) -> List[Dict]:
-        """
-        Generate playlist using AudioMuse-AI chat API
+        """Generate playlist using AudioMuse-AI chat API
         
         Args:
             user_request: Natural language request for playlist
@@ -57,6 +52,7 @@ class AudioMuseClient:
                 payload["openai_api_key"] = self.api_key
             elif self.ai_provider == "MISTRAL":
                 payload["mistral_api_key"] = self.api_key
+        payload = {k: v for k, v in payload.items() if v is not None and str(v).lower() != "null"}
         
         try:
             logger.debug(f"AudioMuse API request: {endpoint}")
@@ -65,7 +61,8 @@ class AudioMuseClient:
             response.raise_for_status()
             
             data = response.json()
-            songs = data.get('query_results', [])
+            response_data = data.get('response', data)
+            songs = response_data.get('query_results') or []
             
             logger.info(f"AudioMuse-AI returned {len(songs)} songs for request: '{user_request}'")
             if len(songs) < num_songs:
@@ -86,7 +83,11 @@ class AudioMuseClient:
             return []
     
     def check_health(self) -> bool:
-        """Check if AudioMuse-AI server is accessible"""
+        """Check if AudioMuse-AI server is accessible
+        
+        Returns:
+            True if server is healthy, False otherwise
+        """
         try:
             logger.debug(f"Checking AudioMuse-AI health at {self.base_url}")
             response = requests.get(f"{self.base_url}/api/config", timeout=5)

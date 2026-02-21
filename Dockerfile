@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Final stage - minimal runtime image
 FROM python:3.12-slim
 
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
 LABEL org.opencontainers.image.title="OctoGen" \
       org.opencontainers.image.description="AI-Powered Music Discovery Engine for Navidrome" \
       org.opencontainers.image.authors="OctoGen Contributors" \
@@ -39,6 +42,8 @@ WORKDIR /app
 
 # Copy application code
 COPY *.py .
+COPY octogen/ octogen/
+COPY config/ /config/
 
 # Create data directory with proper permissions
 RUN mkdir -p /data && chmod 755 /data
@@ -50,7 +55,11 @@ ENV OCTOGEN_DATA_DIR=/data \
     PYTHONDONTWRITEBYTECODE=1 \
     AI_BACKEND=gemini \
     AI_MODEL=gemini-2.5-flash \
-    AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+    AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/ \
+    METRICS_ENABLED=true \
+    METRICS_PORT=9090 \
+    WEB_ENABLED=true \
+    WEB_PORT=5000
 
 # Health check - verifies log file exists and was updated recently
 HEALTHCHECK --interval=5m --timeout=30s --start-period=30s --retries=3 \
@@ -61,13 +70,18 @@ HEALTHCHECK --interval=5m --timeout=30s --start-period=30s --retries=3 \
   || exit 1
 
 
-# Expose data volume
-VOLUME ["/data"]
+# Expose ports
+EXPOSE 9090 5000
+# Port 9090: Prometheus metrics
+# Port 5000: Web UI dashboard
+
+# Expose data and config volumes
+VOLUME ["/data", "/config"]
 
 # Run as non-root user for security (optional - uncomment if desired)
 # RUN useradd -m -u 1000 octogen && \
 #     chown -R octogen:octogen /app /data
 # USER octogen
 
-# Default command
-CMD ["python", "-u", "octogen.py"]
+# Default command - use modular entry point
+CMD ["python", "-u", "-m", "octogen.main"]

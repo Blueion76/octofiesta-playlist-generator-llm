@@ -62,7 +62,7 @@ OCTOFIESTA_URL=http://octo-fiesta:8080
 ---
 
 ### AI_API_KEY
-**Description**: API key for your AI provider (LLM-based recommendations)  
+**Description**: API key for your LLM provider (LLM-based recommendations)  
 **Type**: String  
 **Required**: No (optional if AudioMuse-AI, Last.fm, or ListenBrainz is enabled)  
 **Examples**:
@@ -87,15 +87,15 @@ AI_API_KEY=ollama
 
 **Notes**:
 - **Optional**: Not required if you configure AudioMuse-AI, Last.fm, or ListenBrainz
-- At least one music source must be configured (AI, AudioMuse, Last.fm, or ListenBrainz)
+- At least one music source must be configured (LLM, AudioMuse, Last.fm, or ListenBrainz)
 - Keep API keys secure and never commit to version control
 
 ---
 
-## 🟡 AI Configuration (Optional)
+## 🟡 LLM Configuration (Optional)
 
 ### AI_MODEL
-**Description**: AI model to use for recommendations  
+**Description**: LLM model to use for recommendations  
 **Default**: `gemini-2.5-flash`  
 **Examples**:
 ```bash
@@ -119,7 +119,7 @@ AI_MODEL=mixtral
 ---
 
 ### AI_BACKEND
-**Description**: AI backend to use  
+**Description**: LLM backend to use  
 **Default**: `gemini`  
 **Options**: `gemini`, `openai`  
 **Examples**:
@@ -160,7 +160,7 @@ AI_BASE_URL=https://api.custom.com/v1
 ---
 
 ### AI_MAX_CONTEXT_SONGS
-**Description**: Maximum number of songs to send to AI for context  
+**Description**: Maximum number of songs to send to the LLM for context  
 **Default**: `500`  
 **Range**: `100` to `1000`  
 **Example**:
@@ -174,16 +174,13 @@ AI_MAX_CONTEXT_SONGS=500
 ---
 
 ### AI_MAX_OUTPUT_TOKENS
-**Description**: Maximum tokens AI can generate in response  
-**Default**: `65535`  
-**Range**: `10000` to `65535`  
+**Description**: Maximum tokens the LLM can generate in a response  
+**Default**: `8192`  
+**Range**: `8192` to `65535`  
 **Example**:
 ```bash
-AI_MAX_OUTPUT_TOKENS=65535
+AI_MAX_OUTPUT_TOKENS=8192
 ```
-**Notes**:
-- 11 playlists × 30-50 songs requires ~40,000-50,000 tokens
-- Don't set below 40,000
 
 ---
 
@@ -306,7 +303,7 @@ TZ=America/Chicago
 ---
 
 ### MIN_RUN_INTERVAL_HOURS
-**Description**: Minimum hours between runs when primary services (AI/AudioMuse) succeed  
+**Description**: Minimum hours between runs when primary services (LLM/AudioMuse) succeed  
 **Default**: `6`  
 **Range**: `1` to `48`  
 **Example**:
@@ -314,7 +311,7 @@ TZ=America/Chicago
 MIN_RUN_INTERVAL_HOURS=6
 ```
 **Notes**:
-- Applied when AI or AudioMuse playlists are successfully generated
+- Applied when the LLM or AudioMuse playlists are successfully generated
 - **Only used in manual mode** (when `SCHEDULE_CRON` is not set or set to `manual`)
 - Prevents duplicate runs from container restarts or manual triggers
 - In scheduled mode (with `SCHEDULE_CRON`), cooldown is automatically calculated from cron expression
@@ -349,49 +346,317 @@ MIN_RUN_INTERVAL_HOURS=4
 
 ---
 
-### EXTERNAL_SERVICES_COOLDOWN_HOURS
-**Description**: Reduced cooldown period when only external services (Last.fm/ListenBrainz) succeed but AI fails  
-**Default**: `1.0`  
+### MIN_RUN_INTERVAL_HOURS
+**Description**: Minimum hours between runs in manual mode (no SCHEDULE_CRON)  
+**Default**: `6`  
 **Range**: `0.5` to `24`  
 **Example**:
 ```bash
-EXTERNAL_SERVICES_COOLDOWN_HOURS=1.0
+MIN_RUN_INTERVAL_HOURS=6
 ```
 **Notes**:
-- Applied when AI/AudioMuse fail but Last.fm or ListenBrainz succeed
-- Allows faster retries when AI hits rate limits but external services work
-- Prevents aggressive retry loops while allowing external services to refresh
-- Set lower (e.g., 0.5h) if you want immediate retries after AI failures
-- Set higher (e.g., 2h) if you want more conservative retry behavior
+- Only applies when SCHEDULE_CRON is not set or set to "manual"
+- In scheduled mode (with SCHEDULE_CRON), uses 90% of cron interval instead
+- All services respect this cooldown period equally
+- Prevents duplicate runs after successful completion
+- System checks `octogen_last_run.json` for last run timestamp
 
-**Smart Cooldown Logic**:
-The system applies different cooldowns based on what succeeded:
-- **Primary services succeeded** (AI or AudioMuse): Uses `MIN_RUN_INTERVAL_HOURS` (default: 6h)
-- **Only external services succeeded**: Uses `EXTERNAL_SERVICES_COOLDOWN_HOURS` (default: 1h)
-- **All services failed**: Uses `EXTERNAL_SERVICES_COOLDOWN_HOURS` (default: 1h)
+**Cooldown Logic**:
+- **Scheduled mode**: Cooldown = 90% of detected cron interval
+- **Manual mode**: Cooldown = MIN_RUN_INTERVAL_HOURS
+- Applied uniformly regardless of which services succeeded/failed
+- Ensures schedule is properly respected
 
-**Example Scenarios**:
-```bash
-# Scenario 1: AI succeeds
-# Last run: 5 hours ago, AI created 11 playlists
-# Result: Blocked (needs 6h cooldown)
-
-# Scenario 2: AI rate limited, externals succeed
-# Last run: 2 hours ago, AI failed (rate_limit), Last.fm succeeded
-# Result: Allowed to run (only needs 1h cooldown)
-
-# Scenario 3: All services failed
-# Last run: 30 minutes ago, all services failed
-# Result: Blocked (needs 1h cooldown)
-```
+---
 
 **Why This Matters**:
 - **AI rate limits** don't prevent external service refreshes
 - **External services** (Last.fm/ListenBrainz) can run more frequently
-- **Prevents AI spam** with full 6h cooldown when AI succeeds
-- **Allows recovery** with 1h cooldown when AI fails
+- **Prevents LLM spam** with full 6h cooldown when the LLM succeeds
+- **Allows recovery** with 1h cooldown when the LLM fails
 
 ---
+
+
+## 📊 Monitoring and Metrics (Optional)
+
+### METRICS_ENABLED
+**Description**: Enable Prometheus metrics collection and HTTP server  
+**Default**: `true`  
+**Options**: `true`, `false`  
+**Example**:
+```bash
+METRICS_ENABLED=true
+```
+**Notes**:
+- Exposes metrics on port 9090 (configurable via METRICS_PORT)
+- Provides counters, histograms, and gauges for monitoring
+- Metrics include: playlists created, songs downloaded, API calls, latency, tokens used
+- Access metrics at `http://localhost:9090/metrics`
+
+---
+
+### METRICS_PORT
+**Description**: Port for Prometheus metrics HTTP server  
+**Default**: `9090`  
+**Range**: 1024-65535  
+**Example**:
+```bash
+METRICS_PORT=9090
+```
+**Notes**:
+- Only applies when METRICS_ENABLED=true
+- Ensure port is not in use by another service
+- Must be exposed in Docker: `-p 9090:9090`
+
+---
+
+### CIRCUIT_BREAKER_THRESHOLD
+**Description**: Number of failures before opening circuit breaker  
+**Default**: `5`  
+**Range**: 1+  
+**Example**:
+```bash
+CIRCUIT_BREAKER_THRESHOLD=5
+```
+**Notes**:
+- Circuit breaker prevents cascading failures to external APIs
+- After threshold failures, circuit opens and requests fail fast
+- Helps protect external services from overload
+
+---
+
+### CIRCUIT_BREAKER_TIMEOUT
+**Description**: Seconds to wait before attempting recovery  
+**Default**: `60`  
+**Range**: 10+  
+**Example**:
+```bash
+CIRCUIT_BREAKER_TIMEOUT=60
+```
+**Notes**:
+- After timeout, circuit enters half-open state and tries one request
+- If successful, circuit closes; if failed, reopens for another timeout period
+
+---
+
+## 🌐 Web UI Dashboard (Optional)
+
+### WEB_ENABLED
+**Description**: Enable Flask web UI dashboard  
+**Default**: `true`  
+**Options**: `true`, `false`, `no`, `off`, `disabled`  
+**Example**:
+```bash
+WEB_ENABLED=true
+```
+**Notes**:
+- Provides real-time web-based monitoring dashboard
+- Shows service health status with color-coded indicators
+- Displays system statistics (playlists, cache, ratings)
+- Auto-refreshes every 30 seconds
+- Includes Swagger API documentation at `/apidocs/`
+- Access at `http://localhost:5000` (or configured port)
+
+---
+
+### WEB_PORT
+**Description**: Port for web UI HTTP server  
+**Default**: `5000`  
+**Range**: 1024-65535  
+**Example**:
+```bash
+WEB_PORT=5000
+```
+**Notes**:
+- Only applies when WEB_ENABLED=true
+- Must be exposed in Docker: `-p 5000:5000`
+- Dashboard includes:
+  - System status and run times
+  - Statistics (playlists created, songs rated, cache size)
+  - Core services (Navidrome, Octo-Fiesta, LLM Engine)
+  - Optional services (AudioMuse, Last.fm, ListenBrainz)
+- API endpoints: `/api/health`, `/api/services`, `/api/stats`, `/api/status`
+
+---
+
+## 🕐 Time-of-Day Playlists (Optional)
+
+### TIMEOFDAY_ENABLED
+**Description**: Enable automatic time-period playlist generation  
+**Default**: `true`  
+**Options**: `true`, `false`  
+**Example**:
+```bash
+TIMEOFDAY_ENABLED=true
+```
+**Notes**:
+- Creates mood-appropriate playlists based on time of day
+- Generates one playlist per time period (Morning/Afternoon/Evening/Night)
+- Uses hybrid generation: 25 songs from AudioMuse + 5 from LLM
+- **Time-gated**: Each playlist only generates at its designated hour (±30 minutes)
+- **Morning Mix**: Generates at 4:00 AM only
+- **Afternoon Flow**: Generates at 10:00 AM (noon) only
+- **Evening Chill**: Generates at 4:00 PM only
+- **Night Vibes**: Generates at 10:00 PM only
+- Duplicate prevention: Won't regenerate within 1 hour
+- Respects TZ environment variable for timezone
+- Auto-deletes previous period's playlist when generating new one
+
+---
+
+### TIMEOFDAY_MORNING_START
+**Description**: Hour when morning period starts (24-hour format)  
+**Default**: `4`  
+**Range**: 0-23  
+**Example**:
+```bash
+TIMEOFDAY_MORNING_START=4
+```
+
+### TIMEOFDAY_MORNING_END
+**Description**: Hour when morning period ends  
+**Default**: `10`  
+
+### TIMEOFDAY_AFTERNOON_START
+**Description**: Hour when afternoon period starts  
+**Default**: `10`  
+
+### TIMEOFDAY_AFTERNOON_END
+**Description**: Hour when afternoon period ends  
+**Default**: `16`  
+
+### TIMEOFDAY_EVENING_START
+**Description**: Hour when evening period starts  
+**Default**: `16`  
+
+### TIMEOFDAY_EVENING_END
+**Description**: Hour when evening period ends  
+**Default**: `22`  
+
+### TIMEOFDAY_NIGHT_START
+**Description**: Hour when night period starts  
+**Default**: `22`  
+
+### TIMEOFDAY_NIGHT_END
+**Description**: Hour when night period ends  
+**Default**: `4`  
+
+**Time Period Moods**:
+- **Morning (4-10)**: Upbeat, energetic, positive vibes
+- **Afternoon (10-16)**: Balanced, productive, moderate energy
+- **Evening (16-22)**: Chill, relaxing, wind-down music
+- **Night (22-4)**: Ambient, calm, sleep-friendly
+
+---
+
+### TIMEOFDAY_PLAYLIST_SIZE
+**Description**: Number of songs in each time-period playlist  
+**Default**: `30`  
+**Range**: 10-100  
+**Example**:
+```bash
+TIMEOFDAY_PLAYLIST_SIZE=30
+```
+**Notes**:
+- Default: 25 from AudioMuse + 5 from LLM
+- AudioMuse uses sonic analysis for similarity
+- LLM adds variety and discovery
+- Requires AudioMuse to be enabled for full 30 songs
+
+---
+
+
+- Period playlists now use time-gated generation
+- Each period playlist only generates at its designated time (4am, 10am, 4pm, 10pm)
+- Generation occurs within ±30 minute window of target time
+- Duplicate prevention prevents multiple generations within 1 hour
+- Tracked in `octogen_timeofday_last.json`
+- Old period playlists are automatically deleted when new one generates
+
+---
+
+## ⚡ Batch Processing (Optional)
+
+### DOWNLOAD_BATCH_SIZE
+**Description**: Number of songs to download per batch  
+**Default**: `5`  
+**Range**: 1-50  
+**Example**:
+```bash
+DOWNLOAD_BATCH_SIZE=10
+```
+**Notes**:
+- Larger batches may be faster but use more memory
+- Smaller batches provide better progress visibility
+- Recommended: 5-10 for most use cases
+
+---
+
+### DOWNLOAD_CONCURRENCY
+**Description**: Maximum concurrent downloads  
+**Default**: `3`  
+**Range**: 1-20  
+**Example**:
+```bash
+DOWNLOAD_CONCURRENCY=5
+```
+**Notes**:
+- Higher concurrency speeds up downloads but increases load
+- Too high may cause timeouts or rate limiting
+- Recommended: 3-5 for most use cases
+
+---
+
+## 📝 Logging Configuration (Optional)
+
+### LOG_FORMAT
+**Description**: Log output format  
+**Default**: `text`  
+**Options**: `text`, `json`  
+**Example**:
+```bash
+LOG_FORMAT=json
+```
+**Notes**:
+- `text`: Human-readable format (default)
+- `json`: Structured JSON for log aggregation systems
+- JSON format includes: timestamp, level, logger, message, context
+
+---
+
+### SHOW_PROGRESS
+**Description**: Show progress indicators in terminal  
+**Default**: `true`  
+**Options**: `true`, `false`  
+**Example**:
+```bash
+SHOW_PROGRESS=false
+```
+**Notes**:
+- Displays progress bars and spinners for long operations
+- Automatically disabled in non-TTY environments (Docker logs)
+- Set to `false` if progress indicators cause issues
+
+---
+
+## 📋 Playlist Templates (Optional)
+
+### PLAYLIST_TEMPLATES_FILE
+**Description**: Path to playlist templates YAML file  
+**Default**: `/config/playlist_templates.yaml`  
+**Example**:
+```bash
+PLAYLIST_TEMPLATES_FILE=/custom/templates.yaml
+```
+**Notes**:
+- Allows customization of playlist generation
+- Default templates included: Morning Motivation, Focus Deep Work, Evening Wind Down, Workout Intensity
+- Create custom templates with mood filters, genres, and characteristics
+- Mount config directory: `-v ./config:/config`
+
+---
+
 
 ## 🟢 Last.fm Integration (Optional)
 
@@ -573,7 +838,7 @@ OCTOFIESTA_URL=http://192.168.1.100:8080
 AI_API_KEY=AIzaSyABC123...
 ```
 
-### Scheduled Daily (Recommended)
+### Scheduled Daily 
 ```bash
 NAVIDROME_URL=http://192.168.1.100:4533
 NAVIDROME_USER=admin
@@ -581,7 +846,7 @@ NAVIDROME_PASSWORD=secret123
 OCTOFIESTA_URL=http://192.168.1.100:8080
 AI_API_KEY=AIzaSyABC123...
 
-# Run daily at 2 AM local time
+# Run daily at 6 AM local time
 SCHEDULE_CRON=0 6 * * *
 TZ=America/Chicago
 ```
@@ -705,7 +970,7 @@ AUDIOMUSE_URL=http://192.168.1.100:8000
 ---
 
 ### AUDIOMUSE_AI_PROVIDER
-**Description**: AI provider for AudioMuse-AI playlist generation  
+**Description**: LLM provider for AudioMuse-AI playlist generation  
 **Type**: String  
 **Default**: `gemini`  
 **Options**: `gemini`, `openai`, `ollama`, `mistral`  
@@ -730,7 +995,7 @@ AUDIOMUSE_AI_MODEL=gpt-4o
 AUDIOMUSE_AI_MODEL=llama3.2
 ```
 **Notes**:
-- Model must be supported by the selected AI provider
+- Model must be supported by the selected LLM provider
 - Gemini 2.5 Flash recommended for best cost/performance
 
 ---
@@ -816,12 +1081,71 @@ LLM_SONGS_PER_MIX=5
 
 ## 🔗 Related Documentation
 
-- **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
 - **Main Documentation**: [README.md](README.md)
 - **Cron Helper**: https://crontab.guru
 
 ---
 
+
+## 🔐 Docker Secrets Support
+
+OctoGen supports Docker secrets for secure management of sensitive configuration. All sensitive environment variables can be provided via Docker secrets.
+
+### Supported Secrets
+
+The following variables automatically check `/run/secrets/` first, then fall back to environment variables:
+
+- `NAVIDROME_PASSWORD` → `/run/secrets/navidrome_password`
+- `AI_API_KEY` → `/run/secrets/ai_api_key`
+- `LASTFM_API_KEY` → `/run/secrets/lastfm_api_key`
+- `LISTENBRAINZ_TOKEN` → `/run/secrets/listenbrainz_token`
+- `AUDIOMUSE_AI_API_KEY` → `/run/secrets/audiomuse_ai_api_key`
+
+### Docker Compose Example
+
+```yaml
+version: '3.8'
+
+services:
+  octogen:
+    image: blueion76/octogen:latest
+    secrets:
+      - navidrome_password
+      - ai_api_key
+    environment:
+      NAVIDROME_URL: "http://navidrome:4533"
+      NAVIDROME_USER: "admin"
+      # Password will be read from /run/secrets/navidrome_password
+      OCTOFIESTA_URL: "http://octo-fiesta:8080"
+      # AI key will be read from /run/secrets/ai_api_key
+
+secrets:
+  navidrome_password:
+    file: ./secrets/navidrome_password.txt
+  ai_api_key:
+    file: ./secrets/ai_api_key.txt
+```
+
+### Creating Secrets
+
+```bash
+# Create secret files
+mkdir -p secrets
+echo "your_password" > secrets/navidrome_password.txt
+echo "your_api_key" > secrets/ai_api_key.txt
+
+# Or use Docker secrets in swarm mode
+echo "your_password" | docker secret create navidrome_password -
+```
+
+### Priority
+
+If the same variable is set multiple ways, OctoGen uses this priority:
+1. Docker secret (`/run/secrets/`)
+2. Environment variable
+3. Default value (if applicable)
+
+---
 ## 💡 Tips
 
 ### Docker Compose
@@ -850,20 +1174,6 @@ For production, use Docker secrets:
 echo "your_password" | docker secret create navidrome_password -
 ```
 
-### Environment Priority
-If same variable set multiple ways:
-1. Command line (`-e VAR=value`)
-2. Environment file (`--env-file .env`)
-3. Default value in code
-
-### Scheduling Best Practices
-- ✅ **DO**: Use `SCHEDULE_CRON` with `TZ` for automatic updates
-- ✅ **DO**: Set `restart: unless-stopped` in Docker Compose
-- ✅ **DO**: Run daily during off-peak hours (2-2 AM)
-- ✅ **DO**: Monitor logs after first scheduled run
-- ❌ **DON'T**: Schedule too frequently (< 6 hours)
-- ❌ **DON'T**: Forget to set timezone (defaults to UTC!)
-- ❌ **DON'T**: Use shell loops anymore (built-in scheduler is better)
 
 ### Troubleshooting Scheduling
 ```bash
@@ -888,15 +1198,21 @@ docker logs octogen | grep "Timezone:"
 |----------|-------|-----------|
 | **Required** | 4 | NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASSWORD, OCTOFIESTA_URL |
 | **AI Config** | 6 | AI_API_KEY (optional), AI_MODEL, AI_BACKEND, AI_BASE_URL, AI_MAX_CONTEXT_SONGS, AI_MAX_OUTPUT_TOKENS |
-| **Scheduling** | 3 | SCHEDULE_CRON, TZ, MIN_RUN_INTERVAL_HOURS |
+| **Scheduling** | 2 | SCHEDULE_CRON, TZ, MIN_RUN_INTERVAL_HOURS |
+| **Monitoring** | 4 | METRICS_ENABLED, METRICS_PORT, CIRCUIT_BREAKER_THRESHOLD, CIRCUIT_BREAKER_TIMEOUT |
+| **Web UI** | 2 | WEB_ENABLED, WEB_PORT |
+| **Time-of-Day** | 11 | TIMEOFDAY_ENABLED, TIMEOFDAY_*_START, TIMEOFDAY_*_END, TIMEOFDAY_PLAYLIST_SIZE, TIMEOFDAY_REFRESH_ON_PERIOD_CHANGE |
+| **Batch Processing** | 2 | DOWNLOAD_BATCH_SIZE, DOWNLOAD_CONCURRENCY |
+| **Logging** | 2 | LOG_FORMAT, SHOW_PROGRESS |
+| **Templates** | 1 | PLAYLIST_TEMPLATES_FILE |
 | **Last.fm** | 3 | LASTFM_ENABLED, LASTFM_API_KEY, LASTFM_USERNAME |
 | **ListenBrainz** | 3 | LISTENBRAINZ_ENABLED, LISTENBRAINZ_USERNAME, LISTENBRAINZ_TOKEN |
 | **AudioMuse-AI** | 7 | AUDIOMUSE_ENABLED, AUDIOMUSE_URL, AUDIOMUSE_AI_PROVIDER, AUDIOMUSE_AI_MODEL, AUDIOMUSE_AI_API_KEY, AUDIOMUSE_SONGS_PER_MIX, LLM_SONGS_PER_MIX |
 | **Performance** | 5 | PERF_ALBUM_BATCH_SIZE, PERF_MAX_ALBUMS_SCAN, PERF_SCAN_TIMEOUT, PERF_DOWNLOAD_DELAY, PERF_POST_SCAN_DELAY |
 | **System** | 2 | LOG_LEVEL, OCTOGEN_DATA_DIR |
-| **Total** | **33** | |
+| **Total** | **54** | |
 
-**Note**: At least one music source must be configured: AI_API_KEY, AudioMuse-AI, Last.fm, or ListenBrainz.
+**Note**: At least one music source must be configured: LLM, AudioMuse-AI, Last.fm, or ListenBrainz.
 
 ---
 
