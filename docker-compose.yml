@@ -43,17 +43,17 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
       
       # Maximum songs to include in AI context (memory optimization)
-      AI_MAX_CONTEXT_SONGS: ${AI_MAX_CONTEXT_SONGS:-500}
+      AI_MAX_CONTEXT_SONGS: ${AI_MAX_CONTEXT_SONGS:-300}
       
       # Maximum output tokens for AI response
-      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-65535}
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-8192}
 
       # ============================================================================
       # OPTIONAL - Scheduling Configuration
       # ============================================================================
       # Cron expression for automatic scheduling (e.g., "0 2 * * *" for daily at 2 AM)
       # Leave unset or use "manual" to disable scheduling
-      SCHEDULE_CRON: ${SCHEDULE_CRON:-0 2 * * *}
+      SCHEDULE_CRON: ${SCHEDULE_CRON:-0 2,6,12,16,22 * * *}
       
       # Timezone for scheduled runs (IANA timezone name)
       TZ: ${TZ:-America/Chicago}
@@ -131,14 +131,14 @@ services:
       TIMEOFDAY_ENABLED: ${TIMEOFDAY_ENABLED:-true}
       
       # Time period boundaries (24-hour format)
-      TIMEOFDAY_MORNING_START: ${TIMEOFDAY_MORNING_START:-6}
+      TIMEOFDAY_MORNING_START: ${TIMEOFDAY_MORNING_START:-4}
       TIMEOFDAY_MORNING_END: ${TIMEOFDAY_MORNING_END:-12}
       TIMEOFDAY_AFTERNOON_START: ${TIMEOFDAY_AFTERNOON_START:-12}
-      TIMEOFDAY_AFTERNOON_END: ${TIMEOFDAY_AFTERNOON_END:-18}
-      TIMEOFDAY_EVENING_START: ${TIMEOFDAY_EVENING_START:-18}
-      TIMEOFDAY_EVENING_END: ${TIMEOFDAY_EVENING_END:-24}
-      TIMEOFDAY_NIGHT_START: ${TIMEOFDAY_NIGHT_START:-0}
-      TIMEOFDAY_NIGHT_END: ${TIMEOFDAY_NIGHT_END:-6}
+      TIMEOFDAY_AFTERNOON_END: ${TIMEOFDAY_AFTERNOON_END:-16}
+      TIMEOFDAY_EVENING_START: ${TIMEOFDAY_EVENING_START:-16}
+      TIMEOFDAY_EVENING_END: ${TIMEOFDAY_EVENING_END:-22}
+      TIMEOFDAY_NIGHT_START: ${TIMEOFDAY_NIGHT_START:-22}
+      TIMEOFDAY_NIGHT_END: ${TIMEOFDAY_NIGHT_END:-4}
       
       # Playlist size (default: 30 songs)
       TIMEOFDAY_PLAYLIST_SIZE: ${TIMEOFDAY_PLAYLIST_SIZE:-30}
