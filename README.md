@@ -747,8 +747,7 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 
 ## 📚 Documentation
 
-- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
-- **[ENV_VARS.md](ENV_VARS.md)** - Complete environment variables reference (44 variables)
+- **[ENV_VARS.md](ENV_VARS.md)** - Complete environment variables reference
 
 ---
 
