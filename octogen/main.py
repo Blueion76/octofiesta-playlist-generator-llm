@@ -570,32 +570,43 @@ class OctoGenEngine:
         logger.info("Processing playlist '%s': %d songs to check", playlist_name, total)
         
         # Phase 1: Check library and collect songs that need downloading
-        for idx, rec in enumerate(recommendations[:max_songs], 1):
+        song_ids: List[str] = []
+        needs_download = []
+        
+        idx = 0
+        added = 0
+        recommendation_count = len(recommendations)
+        # Fill up to max_songs, keep scanning recommendations until you have enough unique/eligible tracks
+        while added < max_songs and idx < recommendation_count:
+            rec = recommendations[idx]
+            idx += 1
+        
             artist = (rec.get("artist") or "").strip()
             title = (rec.get("title") or "").strip()
-            
+        
             if not artist or not title:
                 continue
-            
-            # Check for duplicates
+        
             if self._is_duplicate(artist, title):
                 logger.debug("Skipping duplicate: %s - %s", artist, title)
                 self.stats["songs_skipped_duplicate"] += 1
                 continue
-            
-            # Progress logging
-            if idx % 10 == 0 or idx == 1 or idx == total:
-                logger.info("  [%s] Checking library: %d/%d", playlist_name, idx, total)
-            
-            # Search in library first
+        
+            # Log progress based on 'added', not idx
+            if added % 10 == 0 or added == 0 or added + 1 == max_songs:
+                logger.info("  [%s] Checking library: %d/%d", playlist_name, added + 1, max_songs)
+        
             song_id = self.nd.search_song(artist, title)
             if song_id:
                 if not self._check_and_skip_low_rating(song_id, artist, title):
                     song_ids.append(song_id)
                     self.stats["songs_found"] += 1
+                    added += 1
             else:
-                # Mark for download
                 needs_download.append((artist, title))
+                added += 1   
+        
+        # Continue as you already do, with downloads for needs_download, batch scanning, etc.
         
         # Phase 2: Batch download all missing songs
         if needs_download and not self.dry_run:
