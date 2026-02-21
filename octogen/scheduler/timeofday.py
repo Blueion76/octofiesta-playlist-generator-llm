@@ -37,14 +37,14 @@ def get_current_period() -> str:
     hour = now.hour
 
     # Get period boundaries from environment (defaults match requirements)
-    morning_start = int(os.getenv("TIMEOFDAY_MORNING_START", "6"))
+    morning_start = int(os.getenv("TIMEOFDAY_MORNING_START", "4"))
     morning_end = int(os.getenv("TIMEOFDAY_MORNING_END", "12"))
     afternoon_start = int(os.getenv("TIMEOFDAY_AFTERNOON_START", "12"))
-    afternoon_end = int(os.getenv("TIMEOFDAY_AFTERNOON_END", "18"))
-    evening_start = int(os.getenv("TIMEOFDAY_EVENING_START", "18"))
-    evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "24"))
-    night_start = int(os.getenv("TIMEOFDAY_NIGHT_START", "0"))
-    night_end = int(os.getenv("TIMEOFDAY_NIGHT_END", "6"))
+    afternoon_end = int(os.getenv("TIMEOFDAY_AFTERNOON_END", "16"))
+    evening_start = int(os.getenv("TIMEOFDAY_EVENING_START", "16"))
+    evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "22"))
+    night_start = int(os.getenv("TIMEOFDAY_NIGHT_START", "22"))
+    night_end = int(os.getenv("TIMEOFDAY_NIGHT_END", "4"))
 
     # Determine period
     if morning_start <= hour < morning_end:
@@ -66,14 +66,14 @@ def get_period_display_name(period: str) -> str:
     Returns:
         Display name with time range
     """
-    morning_start = int(os.getenv("TIMEOFDAY_MORNING_START", "6"))
+    morning_start = int(os.getenv("TIMEOFDAY_MORNING_START", "4"))
     morning_end = int(os.getenv("TIMEOFDAY_MORNING_END", "12"))
     afternoon_start = int(os.getenv("TIMEOFDAY_AFTERNOON_START", "12"))
     afternoon_end = int(os.getenv("TIMEOFDAY_AFTERNOON_END", "16"))
     evening_start = int(os.getenv("TIMEOFDAY_EVENING_START", "16"))
     evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "22"))
     night_start = int(os.getenv("TIMEOFDAY_NIGHT_START", "22"))
-    night_end = int(os.getenv("TIMEOFDAY_NIGHT_END", "6"))
+    night_end = int(os.getenv("TIMEOFDAY_NIGHT_END", "4"))
 
     period_names = {
         "morning": f"Morning Mix",
