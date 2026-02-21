@@ -243,7 +243,7 @@ def _parse_iso_timestamp(timestamp_str: str) -> datetime:
 
 
 def get_period_target_hour(period: str) -> int:
-    """Get the target generation hour for a given period.
+    """Get the target generation hour for a given period from env vars.
 
     Args:
         period: Period name (morning, afternoon, evening, night)
@@ -251,14 +251,28 @@ def get_period_target_hour(period: str) -> int:
     Returns:
         Target hour (24-hour format) when this period playlist should generate
     """
-    target_hours = {
-        "morning": 4,      # Morning Mix at 4am
-        "afternoon": 10,   # Afternoon Flow at 10pm (noon)
-        "evening": 16,     # Evening Chill at 4pm
-        "night": 22        # Night Vibes at 10pm
+    defaults = {
+        "morning": 4,
+        "afternoon": 10,
+        "evening": 16,
+        "night": 22
     }
+    env_vars = {
+        "morning": "TIMEOFDAY_MORNING_START",
+        "afternoon": "TIMEOFDAY_AFTERNOON_START",
+        "evening": "TIMEOFDAY_EVENING_START",
+        "night": "TIMEOFDAY_NIGHT_START"
+    }
+    key = period.lower()
+    env_var = env_vars.get(key)
+    default = defaults.get(key, 6)
 
-    return target_hours.get(period, 6)
+    try:
+        value = int(os.getenv(env_var, str(default)))
+        return value
+    except Exception:
+        logger.warning(f"Invalid {env_var}, falling back to default {default}")
+        return default
 
 
 def is_within_generation_window(target_hour: int, tolerance_minutes: int = 30) -> bool:
