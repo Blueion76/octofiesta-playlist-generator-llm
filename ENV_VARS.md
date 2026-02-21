@@ -62,7 +62,7 @@ OCTOFIESTA_URL=http://octo-fiesta:8080
 ---
 
 ### AI_API_KEY
-**Description**: API key for your AI provider (LLM-based recommendations)  
+**Description**: API key for your LLM provider (LLM-based recommendations)  
 **Type**: String  
 **Required**: No (optional if AudioMuse-AI, Last.fm, or ListenBrainz is enabled)  
 **Examples**:
@@ -87,15 +87,15 @@ AI_API_KEY=ollama
 
 **Notes**:
 - **Optional**: Not required if you configure AudioMuse-AI, Last.fm, or ListenBrainz
-- At least one music source must be configured (AI, AudioMuse, Last.fm, or ListenBrainz)
+- At least one music source must be configured (LLM, AudioMuse, Last.fm, or ListenBrainz)
 - Keep API keys secure and never commit to version control
 
 ---
 
-## 🟡 AI Configuration (Optional)
+## 🟡 LLM Configuration (Optional)
 
 ### AI_MODEL
-**Description**: AI model to use for recommendations  
+**Description**: LLM model to use for recommendations  
 **Default**: `gemini-2.5-flash`  
 **Examples**:
 ```bash
@@ -119,7 +119,7 @@ AI_MODEL=mixtral
 ---
 
 ### AI_BACKEND
-**Description**: AI backend to use  
+**Description**: LLM backend to use  
 **Default**: `gemini`  
 **Options**: `gemini`, `openai`  
 **Examples**:
@@ -160,7 +160,7 @@ AI_BASE_URL=https://api.custom.com/v1
 ---
 
 ### AI_MAX_CONTEXT_SONGS
-**Description**: Maximum number of songs to send to AI for context  
+**Description**: Maximum number of songs to send to the LLM for context  
 **Default**: `500`  
 **Range**: `100` to `1000`  
 **Example**:
@@ -174,16 +174,13 @@ AI_MAX_CONTEXT_SONGS=500
 ---
 
 ### AI_MAX_OUTPUT_TOKENS
-**Description**: Maximum tokens AI can generate in response  
-**Default**: `65535`  
-**Range**: `10000` to `65535`  
+**Description**: Maximum tokens the LLM can generate in a response  
+**Default**: `8192`  
+**Range**: `8192` to `65535`  
 **Example**:
 ```bash
-AI_MAX_OUTPUT_TOKENS=65535
+AI_MAX_OUTPUT_TOKENS=8192
 ```
-**Notes**:
-- 11 playlists × 30-50 songs requires ~40,000-50,000 tokens
-- Don't set below 40,000
 
 ---
 
@@ -306,7 +303,7 @@ TZ=America/Chicago
 ---
 
 ### MIN_RUN_INTERVAL_HOURS
-**Description**: Minimum hours between runs when primary services (AI/AudioMuse) succeed  
+**Description**: Minimum hours between runs when primary services (LLM/AudioMuse) succeed  
 **Default**: `6`  
 **Range**: `1` to `48`  
 **Example**:
@@ -314,7 +311,7 @@ TZ=America/Chicago
 MIN_RUN_INTERVAL_HOURS=6
 ```
 **Notes**:
-- Applied when AI or AudioMuse playlists are successfully generated
+- Applied when the LLM or AudioMuse playlists are successfully generated
 - **Only used in manual mode** (when `SCHEDULE_CRON` is not set or set to `manual`)
 - Prevents duplicate runs from container restarts or manual triggers
 - In scheduled mode (with `SCHEDULE_CRON`), cooldown is automatically calculated from cron expression
@@ -381,8 +378,8 @@ MIN_RUN_INTERVAL_HOURS=6
 **Why This Matters**:
 - **AI rate limits** don't prevent external service refreshes
 - **External services** (Last.fm/ListenBrainz) can run more frequently
-- **Prevents AI spam** with full 6h cooldown when AI succeeds
-- **Allows recovery** with 1h cooldown when AI fails
+- **Prevents LLM spam** with full 6h cooldown when the LLM succeeds
+- **Allows recovery** with 1h cooldown when the LLM fails
 
 ---
 
@@ -483,7 +480,7 @@ WEB_PORT=5000
 - Dashboard includes:
   - System status and run times
   - Statistics (playlists created, songs rated, cache size)
-  - Core services (Navidrome, Octo-Fiesta, AI Engine)
+  - Core services (Navidrome, Octo-Fiesta, LLM Engine)
   - Optional services (AudioMuse, Last.fm, ListenBrainz)
 - API endpoints: `/api/health`, `/api/services`, `/api/stats`, `/api/status`
 
@@ -504,7 +501,7 @@ TIMEOFDAY_ENABLED=true
 - Generates one playlist per time period (Morning/Afternoon/Evening/Night)
 - Uses hybrid generation: 25 songs from AudioMuse + 5 from LLM
 - **Time-gated**: Each playlist only generates at its designated hour (±30 minutes)
-- **Morning Mix**: Generates at 6:00 AM only
+- **Morning Mix**: Generates at 4:00 AM only
 - **Afternoon Flow**: Generates at 12:00 PM (noon) only
 - **Evening Chill**: Generates at 4:00 PM only
 - **Night Vibes**: Generates at 10:00 PM only
@@ -520,7 +517,7 @@ TIMEOFDAY_ENABLED=true
 **Range**: 0-23  
 **Example**:
 ```bash
-TIMEOFDAY_MORNING_START=6
+TIMEOFDAY_MORNING_START=4
 ```
 
 ### TIMEOFDAY_MORNING_END
@@ -533,29 +530,29 @@ TIMEOFDAY_MORNING_START=6
 
 ### TIMEOFDAY_AFTERNOON_END
 **Description**: Hour when afternoon period ends  
-**Default**: `18`  
+**Default**: `16`  
 
 ### TIMEOFDAY_EVENING_START
 **Description**: Hour when evening period starts  
-**Default**: `18`  
+**Default**: `16`  
 
 ### TIMEOFDAY_EVENING_END
 **Description**: Hour when evening period ends  
-**Default**: `24`  
+**Default**: `22`  
 
 ### TIMEOFDAY_NIGHT_START
 **Description**: Hour when night period starts  
-**Default**: `0`  
+**Default**: `22`  
 
 ### TIMEOFDAY_NIGHT_END
 **Description**: Hour when night period ends  
-**Default**: `6`  
+**Default**: `4`  
 
 **Time Period Moods**:
-- **Morning (6-12)**: Upbeat, energetic, positive vibes
-- **Afternoon (12-18)**: Balanced, productive, moderate energy
-- **Evening (18-24)**: Chill, relaxing, wind-down music
-- **Night (0-6)**: Ambient, calm, sleep-friendly
+- **Morning (4-12)**: Upbeat, energetic, positive vibes
+- **Afternoon (12-16)**: Balanced, productive, moderate energy
+- **Evening (16-22)**: Chill, relaxing, wind-down music
+- **Night (22-4)**: Ambient, calm, sleep-friendly
 
 ---
 
@@ -847,7 +844,7 @@ OCTOFIESTA_URL=http://192.168.1.100:8080
 AI_API_KEY=AIzaSyABC123...
 ```
 
-### Scheduled Daily (Recommended)
+### Scheduled Daily 
 ```bash
 NAVIDROME_URL=http://192.168.1.100:4533
 NAVIDROME_USER=admin
@@ -855,7 +852,7 @@ NAVIDROME_PASSWORD=secret123
 OCTOFIESTA_URL=http://192.168.1.100:8080
 AI_API_KEY=AIzaSyABC123...
 
-# Run daily at 2 AM local time
+# Run daily at 6 AM local time
 SCHEDULE_CRON=0 6 * * *
 TZ=America/Chicago
 ```
@@ -979,7 +976,7 @@ AUDIOMUSE_URL=http://192.168.1.100:8000
 ---
 
 ### AUDIOMUSE_AI_PROVIDER
-**Description**: AI provider for AudioMuse-AI playlist generation  
+**Description**: LLM provider for AudioMuse-AI playlist generation  
 **Type**: String  
 **Default**: `gemini`  
 **Options**: `gemini`, `openai`, `ollama`, `mistral`  
@@ -1004,7 +1001,7 @@ AUDIOMUSE_AI_MODEL=gpt-4o
 AUDIOMUSE_AI_MODEL=llama3.2
 ```
 **Notes**:
-- Model must be supported by the selected AI provider
+- Model must be supported by the selected LLM provider
 - Gemini 2.5 Flash recommended for best cost/performance
 
 ---
@@ -1090,7 +1087,6 @@ LLM_SONGS_PER_MIX=5
 
 ## 🔗 Related Documentation
 
-- **Quick Start**: [QUICKSTART.md](QUICKSTART.md)
 - **Main Documentation**: [README.md](README.md)
 - **Cron Helper**: https://crontab.guru
 
@@ -1222,7 +1218,7 @@ docker logs octogen | grep "Timezone:"
 | **System** | 2 | LOG_LEVEL, OCTOGEN_DATA_DIR |
 | **Total** | **54** | |
 
-**Note**: At least one music source must be configured: AI_API_KEY, AudioMuse-AI, Last.fm, or ListenBrainz.
+**Note**: At least one music source must be configured: LLM, AudioMuse-AI, Last.fm, or ListenBrainz.
 
 ---
 
