@@ -68,9 +68,14 @@ class ListenBrainzAPI:
         
         playlists = response["playlists"]
 
-        # Add minimal validation: only include playlists with 'id' and 'name'
-        required = {"id", "name"}
-        playlists = [p for p in playlists if all(k in p for k in required)]
+        # Validate: the ListenBrainz API returns JSPF format where each item is
+        # {"playlist": {"title": ..., "identifier": ..., "track": [...], ...}}
+        # The old filter checked for top-level 'id' and 'name' keys which don't
+        # exist in JSPF format, causing ALL playlists to be silently dropped.
+        playlists = [
+            p for p in playlists
+            if p.get("playlist", {}).get("title") and p.get("playlist", {}).get("identifier")
+        ]
         
         # DEBUG
         if playlists:

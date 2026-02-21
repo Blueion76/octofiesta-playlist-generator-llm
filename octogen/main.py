@@ -763,7 +763,11 @@ class OctoGenEngine:
         logger.info(f"🤖 {label}: Got {len(llm_songs)} songs from LLM")
         logger.info(f"🎵 {label}: Total {len(songs)} songs (AudioMuse: {audiomuse_actual_count}, LLM: {len(llm_songs)})")
         
-        return songs[:30]  # Ensure we return exactly 30 songs
+        # Return the full pool so _process_recommendations can iterate past cross-playlist
+        # duplicates and still find enough unique songs to fill max_songs.
+        # DO NOT slice here — slicing to 30 caused later playlists to get 0 songs because
+        # all 30 candidates had already been marked as processed by earlier playlists.
+        return songs
 
     def _generate_llm_songs_for_daily_mix(
         self,
