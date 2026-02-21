@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Final stage - minimal runtime image
 FROM python:3.12-slim
 
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
 LABEL org.opencontainers.image.title="OctoGen" \
       org.opencontainers.image.description="AI-Powered Music Discovery Engine for Navidrome" \
       org.opencontainers.image.authors="OctoGen Contributors" \
