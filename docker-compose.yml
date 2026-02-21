@@ -88,7 +88,7 @@ services:
       PERF_DOWNLOAD_DELAY: ${PERF_DOWNLOAD_DELAY:-6}
       
       # Delay after Navidrome scan completes (seconds)
-      PERF_POST_SCAN_DELAY: ${PERF_POST_SCAN_DELAY:-2}
+      PERF_POST_SCAN_DELAY: ${PERF_POST_SCAN_DELAY:-10}
 
       # ============================================================================
       # OPTIONAL - AudioMuse-AI Integration
