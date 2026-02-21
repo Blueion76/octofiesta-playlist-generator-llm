@@ -10,8 +10,8 @@ Built with AI assistance. Contributions and pull requests welcome!
 
 ## ✨ Features
 
-### 🤖 AI-Powered Recommendations
-- **Multiple AI providers**: Gemini and OpenAI-compatible API-supported providers
+### 🤖 LLM-Powered Recommendations
+- **Multiple LLM providers**: Gemini and OpenAI-compatible API-supported providers
 - **Smart context caching**: Efficient, low-cost API usage
 - **Variety seed**: Different recommendations every day
 
@@ -40,7 +40,7 @@ Automatic mood-appropriate playlists that rotate based on time of day:
 - ✅ Auto-rotates when time period changes
 - ✅ Auto-deletes previous period's playlist
 - ✅ Configurable time boundaries
-- ✅ AI prompts enhanced with time-of-day context
+- ✅ LLM prompts enhanced with time-of-day context
 
 Enable with:
 ```bash
@@ -91,7 +91,7 @@ See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 - **Prometheus metrics**: Track playlists, downloads, API calls, latency
 - **Circuit breaker**: Prevents cascading failures to external APIs
 - **Structured logging**: JSON format support for log aggregation
-- **Health checks**: Monitor Navidrome, Octo-Fiesta, AI, AudioMuse, LastFM, ListenBrainz
+- **Health checks**: Monitor Navidrome, Octo-Fiesta, LLM, AudioMuse, LastFM, ListenBrainz
 
 ### ⚙️ Advanced Features
 - **Modular architecture**: Clean, maintainable codebase
@@ -109,7 +109,7 @@ See [AudioMuse-AI Setup](#-audiomuse-ai-setup-optional) below.
 - **Navidrome** server running
 - **Octo-Fiesta** configured for downloads
 - **At least one music source**:
-  - AI API key (Gemini recommended - free tier available), OR
+  - LLM API key (Gemini recommended - free tier available), OR
   - AudioMuse-AI configured, OR
   - LastFM enabled, OR
   - ListenBrainz enabled
@@ -230,7 +230,7 @@ OctoGen includes a real-time monitoring dashboard accessible at `http://localhos
 - **Service Health Monitoring**: Real-time status for all connected services
   - Navidrome (connection, library stats)
   - Octo-Fiesta (connection status)
-  - AI Engine (backend, model, status)
+  - LLM Engine (backend, model, status)
   - AudioMuse-AI (enabled/disabled, health)
   - LastFM (enabled/disabled, connection)
   - ListenBrainz (enabled/disabled, connection)
@@ -349,7 +349,7 @@ LLM_SONGS_PER_MIX=5         # Songs from LLM (default: 5)
 
 ---
 
-## 🎯 AI Provider Examples
+## 🎯 LLM Provider Examples
 
 ### Gemini (Recommended - Free Tier)
 ```bash
@@ -477,7 +477,7 @@ OctoGen uses a modular architecture with clean separation of concerns:
 ```
 octogen/
 ├── api/              # External API clients (Navidrome, LastFM, ListenBrainz, AudioMuse)
-├── ai/               # Multi-backend AI recommendation engine
+├── ai/               # Multi-backend LLM recommendation engine
 ├── monitoring/       # Prometheus metrics + circuit breaker
 ├── web/              # Flask dashboard
 ├── storage/          # SQLite ratings cache
@@ -494,8 +494,8 @@ octogen/
    - Identifies top artists and genres
    - Caches ratings (daily refresh for performance)
 
-2. **Generates AI recommendations**
-   - Sends music profile to AI (or uses AudioMuse/LastFM/ListenBrainz)
+2. **Generates LLM recommendations**
+   - Sends music profile to LLM (or uses AudioMuse/LastFM/ListenBrainz)
    - Excludes low-rated songs (1-2 stars)
    - Requests 11 themed playlists with variety
 
@@ -519,7 +519,7 @@ octogen/
 ### Components
 
 - **Navidrome API**: Library reading, playlist creation, rating management
-- **AI Provider**: Personalized recommendations (Gemini, OpenAI, Groq, Ollama, etc.)
+- **LLM Provider**: Personalized recommendations (Gemini, OpenAI, Groq, Ollama, etc.)
 - **Octo-Fiesta**: Automatic download of missing tracks
 - **SQLite Cache**: Rating storage with daily refresh
 - **Circuit Breaker**: Prevents cascading failures to external APIs
@@ -556,7 +556,7 @@ OctoGen stores data in `/data`:
 /data/
 ├── octogen.log              # Application logs
 ├── octogen_cache.db         # Star ratings cache
-├── gemini_cache.json        # AI context cache
+├── gemini_cache.json        # LLM context cache
 └── octogen.lock             # Prevents duplicate runs
 ```
 
@@ -613,7 +613,7 @@ Available metrics:
 - `octogen_songs_downloaded_total` - Songs downloaded
 - `octogen_api_calls_total{service,status}` - API calls
 - `octogen_api_latency_seconds{service}` - API latency
-- `octogen_ai_tokens_used` - AI tokens consumed
+- `octogen_ai_tokens_used` - LLM tokens consumed
 - `octogen_last_run_timestamp` - Last successful run
 - `octogen_last_run_duration_seconds` - Run duration
 
@@ -737,7 +737,7 @@ docker exec octogen sqlite3 /data/octogen_cache.db "SELECT COUNT(*) FROM ratings
 
 **Components:**
 - **Navidrome API**: Reads library, creates playlists
-- **AI Provider**: Generates recommendations
+- **LLM Provider**: Generates recommendations
 - **Octo-Fiesta**: Downloads missing tracks
 - **SQLite Cache**: Stores ratings (daily refresh)
 - **Logs**: Application activity
@@ -761,7 +761,6 @@ Contributions welcome! Just create a pull request.
 
 - **[Navidrome](https://www.navidrome.org/)** - Open-source music server
 - **[Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta)** - Automated music downloader
-- **[Google Gemini](https://ai.google.dev/)** - AI recommendations
 - **[LastFM](https://www.LastFM/)** - Music discovery API
 - **[ListenBrainz](https://listenbrainz.org/)** - Open music metadata
 - **[AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI)** - In-depth analysis of your music library
