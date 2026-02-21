@@ -38,8 +38,8 @@ def get_current_period() -> str:
 
     # Get period boundaries from environment (defaults match requirements)
     morning_start = int(os.getenv("TIMEOFDAY_MORNING_START", "4"))
-    morning_end = int(os.getenv("TIMEOFDAY_MORNING_END", "12"))
-    afternoon_start = int(os.getenv("TIMEOFDAY_AFTERNOON_START", "12"))
+    morning_end = int(os.getenv("TIMEOFDAY_MORNING_END", "10"))
+    afternoon_start = int(os.getenv("TIMEOFDAY_AFTERNOON_START", "10"))
     afternoon_end = int(os.getenv("TIMEOFDAY_AFTERNOON_END", "16"))
     evening_start = int(os.getenv("TIMEOFDAY_EVENING_START", "16"))
     evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "22"))
@@ -67,8 +67,8 @@ def get_period_display_name(period: str) -> str:
         Display name with time range
     """
     morning_start = int(os.getenv("TIMEOFDAY_MORNING_START", "4"))
-    morning_end = int(os.getenv("TIMEOFDAY_MORNING_END", "12"))
-    afternoon_start = int(os.getenv("TIMEOFDAY_AFTERNOON_START", "12"))
+    morning_end = int(os.getenv("TIMEOFDAY_MORNING_END", "10"))
+    afternoon_start = int(os.getenv("TIMEOFDAY_AFTERNOON_START", "10"))
     afternoon_end = int(os.getenv("TIMEOFDAY_AFTERNOON_END", "16"))
     evening_start = int(os.getenv("TIMEOFDAY_EVENING_START", "16"))
     evening_end = int(os.getenv("TIMEOFDAY_EVENING_END", "22"))
@@ -252,8 +252,8 @@ def get_period_target_hour(period: str) -> int:
         Target hour (24-hour format) when this period playlist should generate
     """
     target_hours = {
-        "morning": 6,      # Morning Mix at 6am
-        "afternoon": 12,   # Afternoon Flow at 12pm (noon)
+        "morning": 4,      # Morning Mix at 4am
+        "afternoon": 10,   # Afternoon Flow at 10pm (noon)
         "evening": 16,     # Evening Chill at 4pm
         "night": 22        # Night Vibes at 10pm
     }
