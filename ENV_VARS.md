@@ -368,12 +368,6 @@ MIN_RUN_INTERVAL_HOURS=6
 - Ensures schedule is properly respected
 
 ---
-### Result: Allowed to run (only needs 1h cooldown)
-
-## Scenario 3: All services failed
-### Last run: 30 minutes ago, all services failed
-### Result: Blocked (needs 1h cooldown)
-
 
 **Why This Matters**:
 - **AI rate limits** don't prevent external service refreshes
