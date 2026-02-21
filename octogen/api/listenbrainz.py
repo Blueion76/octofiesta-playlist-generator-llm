@@ -67,6 +67,10 @@ class ListenBrainzAPI:
             return []
         
         playlists = response["playlists"]
+
+        # Add minimal validation: only include playlists with 'id' and 'name'
+        required = {"id", "name"}
+        playlists = [p for p in playlists if all(k in p for k in required)]
         
         # DEBUG
         if playlists:
