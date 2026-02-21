@@ -1,4 +1,4 @@
-# 🎵 OctoGen - AI-Powered Music Discovery for Navidrome
+# 🎵 OctoGen - Automatic Spotify-like Playlists for Navidrome
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/blueion76/octogen?logo=docker)](https://hub.docker.com/r/blueion76/octogen)
 
