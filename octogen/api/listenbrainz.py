@@ -101,10 +101,18 @@ class ListenBrainzAPI:
             artist = track.get("creator", "Unknown")
             title = track.get("title", "Unknown")
             
+            identifier = track.get("identifier")
+            mbid = None
+            if identifier:
+                if isinstance(identifier, list) and identifier:
+                    mbid = identifier[0].split("/")[-1]
+                elif isinstance(identifier, str):
+                    mbid = identifier.split("/")[-1]
+            
             tracks.append({
                 "artist": artist,
                 "title": title,
-                "mbid": track.get("identifier", [""])[0].split("/")[-1] if track.get("identifier") else None
+                "mbid": mbid
             })
         
         logger.info("Found %d tracks in playlist", len(tracks))
@@ -112,32 +120,38 @@ class ListenBrainzAPI:
 
     def get_recommendations(self, limit: int = 50) -> List[Dict]:
         """Fetch personalized recommendations using collaborative filtering.
-        
+    
         This is the original recommendation endpoint (different from playlists).
-        
+    
         Args:
             limit: Maximum number of recommendations
-            
+    
         Returns:
             List of track recommendations
         """
         logger.info("Fetching ListenBrainz CF recommendations...")
-
+    
         response = self._request(f"cf/recommendation/user/{self.username}/recording")
         if not response or "payload" not in response:
             logger.warning("No ListenBrainz recommendations found")
             return []
-
+    
+        mbids = [rec["recording_mbid"] for rec in response["payload"].get("mbids", [])[:limit]]
         recommendations: List[Dict] = []
-        for rec in response["payload"].get("mbids", [])[:limit]:
-            recording_response = self._request(
-                "metadata/recording", {"recording_mbids": rec["recording_mbid"]}
+    
+        if mbids:
+            # Batch request: comma-separated MBIDs
+            metadata_response = self._request(
+                "metadata/recording", {"recording_mbids": ",".join(mbids)}
             )
-            if recording_response:
-                for _mbid, data in recording_response.items():
+            if metadata_response:
+                for mbid in mbids:
+                    data = metadata_response.get(mbid, {})
                     artist = data.get("artist", {}).get("name", "Unknown")
                     title = data.get("recording", {}).get("name", "Unknown")
                     recommendations.append({"artist": artist, "title": title})
-
+            else:
+                logger.warning("Failed to fetch metadata for recommended recordings.")
+    
         logger.info("Found %d ListenBrainz CF recommendations", len(recommendations))
         return recommendations
