@@ -22,8 +22,8 @@ def print_banner():
 ║  ╚██████╔╝╚██████╗   ██║   ╚██████╔╝╚██████╔╝███████╗██║ ╚████║  ║
 ║   ╚═════╝  ╚═════╝   ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═══╝  ║
 ║                                                                  ║
-║             AI-Powered Music Discovery for Navidrome             ║
-║                         Docker Edition                           ║    
+║          Automatic Spotify-like Playlists for Navidrome          ║
+║                                                                  ║    
 ║                                                                  ║   
 ╚══════════════════════════════════════════════════════════════════╝
     """
