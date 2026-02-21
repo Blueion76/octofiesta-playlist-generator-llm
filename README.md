@@ -30,10 +30,10 @@ Built with AI assistance. Contributions and pull requests welcome!
 
 Automatic mood-appropriate playlists that rotate based on time of day:
 
-- **Morning Mix (6 AM - 12 PM)**: Upbeat, energetic, positive vibes
-- **Afternoon Flow (12 PM - 4 PM)**: Balanced, productive, moderate energy
+- **Morning Mix (4 AM - 10 AM)**: Upbeat, energetic, positive vibes
+- **Afternoon Flow (10 AM - 4 PM)**: Balanced, productive, moderate energy
 - **Evening Chill (4 PM - 10 PM)**: Relaxing, wind-down music
-- **Night Vibes (10 AM - 6 AM)**: Ambient, calm, sleep-friendly
+- **Night Vibes (10 PM - 4 AM)**: Ambient, calm, sleep-friendly
 
 **Features**:
 - ✅ Hybrid generation: 25 songs from AudioMuse-AI + 5 from LLM
@@ -201,7 +201,7 @@ services:
       AI_API_KEY: ${GEMINI_API_KEY}
 
       # Scheduling 
-      SCHEDULE_CRON: "0 2,6,12,16,22 * * *"  # Daily at 2 AM, 6 AM, 12 PM, 4 PM and 10 PM
+      SCHEDULE_CRON: "0 2,4,10,16,22 * * *"  # Daily at 2 AM, 4 AM, 10 AM, 4 PM and 10 PM
       TZ: America/Chicago
 
       # Optional
