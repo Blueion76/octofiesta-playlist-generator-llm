@@ -784,11 +784,11 @@ PERF_DOWNLOAD_DELAY=6
 
 ### PERF_POST_SCAN_DELAY
 **Description**: Delay after Navidrome scan completes (seconds)  
-**Default**: `2`  
+**Default**: `10`  
 **Range**: `1` to `10`  
 **Example**:
 ```bash
-PERF_POST_SCAN_DELAY=2
+PERF_POST_SCAN_DELAY=5
 ```
 **Notes**:
 - Ensures scan is fully complete before searching
