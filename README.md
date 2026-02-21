@@ -2,7 +2,7 @@
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/blueion76/octogen?logo=docker)](https://hub.docker.com/r/blueion76/octogen)
 
-**OctoGen** automatically generates personalized music playlists for your Navidrome server using an LLM, LastFM, ListenBrainz or AudioMuse-AI seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
+**OctoGen** automatically generates personalized music playlists for your Navidrome server using an LLM, LastFM, ListenBrainz and/or AudioMuse-AI seamlessly integrating with [Octo-Fiesta](https://github.com/V1ck3s/octo-fiesta) to download missing tracks.
 
 Built with AI assistance. Contributions and pull requests welcome!
 
