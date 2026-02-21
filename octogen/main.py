@@ -706,17 +706,30 @@ class OctoGenEngine:
         audiomuse_actual_count = 0
         if self.audiomuse_client:
             logger.debug(f"Requesting {audiomuse_songs_count} songs from AudioMuse-AI for Daily Mix {mix_number}")
-            audiomuse_request = f"{characteristics} {genre_focus} music"
-            logger.debug(f"AudioMuse request: '{audiomuse_request}'")
-            audiomuse_songs = self.audiomuse_client.generate_playlist(
-                user_request=audiomuse_request,
-                num_songs=audiomuse_songs_count
-            )
-            
+            # --- Begin multi-version prompt logic ---
+            modifiers = characteristics.split() if characteristics else []
+            prompt_variants = []
+            if characteristics and genre_focus:
+                prompt_variants.append(f"{characteristics} {genre_focus} music")  # all modifiers
+            if modifiers:
+                prompt_variants.append(f"{modifiers[0]} {genre_focus} music")     # first modifier
+            if genre_focus:
+                prompt_variants.append(f"{genre_focus} music")                    # genre only
+                prompt_variants.append(f"{genre_focus}")                          # genre only, no "music"
+            audiomuse_songs = []
+            logger.debug(f"AudioMuse prompt attempts: {prompt_variants}")
+            for prompt in prompt_variants:
+                logger.debug(f"AudioMuse request: '{prompt}'")
+                audiomuse_songs = self.audiomuse_client.generate_playlist(
+                    user_request=prompt,
+                    num_songs=audiomuse_songs_count
+                )
+                if len(audiomuse_songs) >= 3:    # threshold; adjust as needed
+                    logger.info(f"AudioMuse prompt '{prompt}' yielded {len(audiomuse_songs)} songs")
+                    break
             # Convert AudioMuse format to Octogen format
             for song in audiomuse_songs:
                 songs.append({"artist": song.get('artist', ''), "title": song.get('title', '')})
-            
             audiomuse_actual_count = len(songs)
             label = f"Daily Mix {mix_number}" if mix_number in [1,2,3,4,5,6] else playlist_name
             logger.info(f"📻 {label}: Got {audiomuse_actual_count} songs from AudioMuse-AI")
