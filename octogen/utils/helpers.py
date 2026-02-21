@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def print_banner():
-    banner = r"""
+    banner = """
     
                   ░██████                 ░██                 ░██████                        
                  ░██   ░██                ░██                ░██   ░██                       
