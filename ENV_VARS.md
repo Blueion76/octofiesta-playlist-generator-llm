@@ -496,7 +496,7 @@ TIMEOFDAY_ENABLED=true
 - Uses hybrid generation: 25 songs from AudioMuse + 5 from LLM
 - **Time-gated**: Each playlist only generates at its designated hour (±30 minutes)
 - **Morning Mix**: Generates at 4:00 AM only
-- **Afternoon Flow**: Generates at 12:00 PM (noon) only
+- **Afternoon Flow**: Generates at 10:00 AM (noon) only
 - **Evening Chill**: Generates at 4:00 PM only
 - **Night Vibes**: Generates at 10:00 PM only
 - Duplicate prevention: Won't regenerate within 1 hour
@@ -507,7 +507,7 @@ TIMEOFDAY_ENABLED=true
 
 ### TIMEOFDAY_MORNING_START
 **Description**: Hour when morning period starts (24-hour format)  
-**Default**: `6`  
+**Default**: `4`  
 **Range**: 0-23  
 **Example**:
 ```bash
@@ -516,11 +516,11 @@ TIMEOFDAY_MORNING_START=4
 
 ### TIMEOFDAY_MORNING_END
 **Description**: Hour when morning period ends  
-**Default**: `12`  
+**Default**: `10`  
 
 ### TIMEOFDAY_AFTERNOON_START
 **Description**: Hour when afternoon period starts  
-**Default**: `12`  
+**Default**: `10`  
 
 ### TIMEOFDAY_AFTERNOON_END
 **Description**: Hour when afternoon period ends  
@@ -543,8 +543,8 @@ TIMEOFDAY_MORNING_START=4
 **Default**: `4`  
 
 **Time Period Moods**:
-- **Morning (4-12)**: Upbeat, energetic, positive vibes
-- **Afternoon (12-16)**: Balanced, productive, moderate energy
+- **Morning (4-10)**: Upbeat, energetic, positive vibes
+- **Afternoon (10-16)**: Balanced, productive, moderate energy
 - **Evening (16-22)**: Chill, relaxing, wind-down music
 - **Night (22-4)**: Ambient, calm, sleep-friendly
 
@@ -568,7 +568,7 @@ TIMEOFDAY_PLAYLIST_SIZE=30
 
 
 - Period playlists now use time-gated generation
-- Each period playlist only generates at its designated time (6am, 12pm, 4pm, 10pm)
+- Each period playlist only generates at its designated time (4am, 10am, 4pm, 10pm)
 - Generation occurs within ±30 minute window of target time
 - Duplicate prevention prevents multiple generations within 1 hour
 - Tracked in `octogen_timeofday_last.json`
