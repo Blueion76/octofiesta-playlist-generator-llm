@@ -2470,68 +2470,68 @@ CRITICAL RULES:
                 write_health_status("unhealthy", "No music sources available")
                 sys.exit(1)
     
-                if all_playlists:
-                    # Handle hybrid playlists if AudioMuse is enabled
-                    if self.audiomuse_client:
-                        logger.info("=" * 70)
-                        logger.info("GENERATING HYBRID PLAYLISTS (AudioMuse + LLM)")
-                        logger.info("=" * 70)
-                        
-                        playlists_before_audiomuse = self.stats["playlists_created"]
-                        
-                        # Define all hybrid playlist configurations (everything except Discovery)
-                        hybrid_playlist_configs = [
-                            # Daily Mixes
-                            {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else DEFAULT_DAILY_MIX_GENRES[0], "characteristics": "energetic", "num": 1},
-                            {"name": "Daily Mix 2", "genre": top_genres[1] if len(top_genres) > 1 else DEFAULT_DAILY_MIX_GENRES[1], "characteristics": "catchy upbeat", "num": 2},
-                            {"name": "Daily Mix 3", "genre": top_genres[2] if len(top_genres) > 2 else DEFAULT_DAILY_MIX_GENRES[2], "characteristics": "danceable rhythmic", "num": 3},
-                            {"name": "Daily Mix 4", "genre": top_genres[3] if len(top_genres) > 3 else DEFAULT_DAILY_MIX_GENRES[3], "characteristics": "rhythmic bass-heavy", "num": 4},
-                            {"name": "Daily Mix 5", "genre": top_genres[4] if len(top_genres) > 4 else DEFAULT_DAILY_MIX_GENRES[4], "characteristics": "alternative atmospheric", "num": 5},
-                            {"name": "Daily Mix 6", "genre": top_genres[5] if len(top_genres) > 5 else DEFAULT_DAILY_MIX_GENRES[5], "characteristics": "smooth melodic", "num": 6},
-                            # Mood/Activity playlists
-                            {"name": "Chill Vibes", "genre": "ambient", "characteristics": "relaxing calm peaceful", "num": 8},
-                            {"name": "Workout Energy", "genre": "high-energy", "characteristics": "upbeat motivating intense", "num": 9},
-                            {"name": "Focus Flow", "genre": "instrumental", "characteristics": "ambient atmospheric concentration", "num": 10},
-                            {"name": "Drive Time", "genre": "upbeat", "characteristics": "driving energetic feel-good", "num": 11}
-                        ]
-                        
-                        # Generate and create hybrid playlists
-                        for mix_config in hybrid_playlist_configs:
-                            hybrid_songs = self._generate_hybrid_daily_mix(
-                                mix_number=mix_config["num"],
-                                genre_focus=mix_config["genre"],
-                                characteristics=mix_config["characteristics"],
-                                top_artists=top_artists,
-                                top_genres=top_genres,
-                                favorited_songs=favorited_songs,
-                                low_rated_songs=low_rated_songs
-                            )
-                            
-                            if hybrid_songs:
-                                self.create_playlist(mix_config["name"], hybrid_songs, max_songs=30)
-                        
-                        # Track AudioMuse service
-                        audiomuse_playlists = self.stats["playlists_created"] - playlists_before_audiomuse
-                        self.service_tracker.record_service(
-                            "audiomuse",
-                            success=True,
-                            playlists=audiomuse_playlists
+            if all_playlists:
+                # Handle hybrid playlists if AudioMuse is enabled
+                if self.audiomuse_client:
+                    logger.info("=" * 70)
+                    logger.info("GENERATING HYBRID PLAYLISTS (AudioMuse + LLM)")
+                    logger.info("=" * 70)
+                    
+                    playlists_before_audiomuse = self.stats["playlists_created"]
+                    
+                    # Define all hybrid playlist configurations (everything except Discovery)
+                    hybrid_playlist_configs = [
+                        # Daily Mixes
+                        {"name": "Daily Mix 1", "genre": top_genres[0] if len(top_genres) > 0 else DEFAULT_DAILY_MIX_GENRES[0], "characteristics": "energetic", "num": 1},
+                        {"name": "Daily Mix 2", "genre": top_genres[1] if len(top_genres) > 1 else DEFAULT_DAILY_MIX_GENRES[1], "characteristics": "catchy upbeat", "num": 2},
+                        {"name": "Daily Mix 3", "genre": top_genres[2] if len(top_genres) > 2 else DEFAULT_DAILY_MIX_GENRES[2], "characteristics": "danceable rhythmic", "num": 3},
+                        {"name": "Daily Mix 4", "genre": top_genres[3] if len(top_genres) > 3 else DEFAULT_DAILY_MIX_GENRES[3], "characteristics": "rhythmic bass-heavy", "num": 4},
+                        {"name": "Daily Mix 5", "genre": top_genres[4] if len(top_genres) > 4 else DEFAULT_DAILY_MIX_GENRES[4], "characteristics": "alternative atmospheric", "num": 5},
+                        {"name": "Daily Mix 6", "genre": top_genres[5] if len(top_genres) > 5 else DEFAULT_DAILY_MIX_GENRES[5], "characteristics": "smooth melodic", "num": 6},
+                        # Mood/Activity playlists
+                        {"name": "Chill Vibes", "genre": "ambient", "characteristics": "relaxing calm peaceful", "num": 8},
+                        {"name": "Workout Energy", "genre": "high-energy", "characteristics": "upbeat motivating intense", "num": 9},
+                        {"name": "Focus Flow", "genre": "instrumental", "characteristics": "ambient atmospheric concentration", "num": 10},
+                        {"name": "Drive Time", "genre": "upbeat", "characteristics": "driving energetic feel-good", "num": 11}
+                    ]
+                    
+                    # Generate and create hybrid playlists
+                    for mix_config in hybrid_playlist_configs:
+                        hybrid_songs = self._generate_hybrid_daily_mix(
+                            mix_number=mix_config["num"],
+                            genre_focus=mix_config["genre"],
+                            characteristics=mix_config["characteristics"],
+                            top_artists=top_artists,
+                            top_genres=top_genres,
+                            favorited_songs=favorited_songs,
+                            low_rated_songs=low_rated_songs
                         )
-                        logger.info("AudioMuse-AI service succeeded: %d playlists", audiomuse_playlists)
                         
-                        # Create Discovery from AI response (LLM-only for new discoveries)
-                        if "Discovery" in all_playlists:
-                            discovery_songs = all_playlists["Discovery"]
-                            if isinstance(discovery_songs, list) and discovery_songs:
-                                logger.info("=" * 70)
-                                logger.info("DISCOVERY (LLM-only for new discoveries)")
-                                logger.info("=" * 70)
-                                self.create_playlist("Discovery", discovery_songs, max_songs=50)
-                    else:
-                        # Original behavior: use all AI-generated playlists
-                        for playlist_name, songs in all_playlists.items():
-                            if isinstance(songs, list) and songs:
-                                self.create_playlist(playlist_name, songs, max_songs=100)
+                        if hybrid_songs:
+                            self.create_playlist(mix_config["name"], hybrid_songs, max_songs=30)
+                    
+                    # Track AudioMuse service
+                    audiomuse_playlists = self.stats["playlists_created"] - playlists_before_audiomuse
+                    self.service_tracker.record_service(
+                        "audiomuse",
+                        success=True,
+                        playlists=audiomuse_playlists
+                    )
+                    logger.info("AudioMuse-AI service succeeded: %d playlists", audiomuse_playlists)
+                    
+                    # Create Discovery from AI response (LLM-only for new discoveries)
+                    if "Discovery" in all_playlists:
+                        discovery_songs = all_playlists["Discovery"]
+                        if isinstance(discovery_songs, list) and discovery_songs:
+                            logger.info("=" * 70)
+                            logger.info("DISCOVERY (LLM-only for new discoveries)")
+                            logger.info("=" * 70)
+                            self.create_playlist("Discovery", discovery_songs, max_songs=50)
+                else:
+                    # Original behavior: use all AI-generated playlists
+                    for playlist_name, songs in all_playlists.items():
+                        if isinstance(songs, list) and songs:
+                            self.create_playlist(playlist_name, songs, max_songs=100)
 
             
             # External services (run regardless of starred songs)
