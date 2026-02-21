@@ -215,7 +215,7 @@ class OctoGenEngine:
                 "max_albums_scan": self._get_env_int("PERF_MAX_ALBUMS_SCAN", 10000),
                 "scan_timeout": self._get_env_int("PERF_SCAN_TIMEOUT", 60),
                 "download_delay_seconds": self._get_env_int("PERF_DOWNLOAD_DELAY", 6),
-                "post_scan_delay_seconds": self._get_env_int("PERF_POST_SCAN_DELAY", 2)
+                "post_scan_delay_seconds": self._get_env_int("PERF_POST_SCAN_DELAY", 10)
             },
             "lastfm": {
                 "enabled": self._get_env_bool("LASTFM_ENABLED", False),
@@ -570,32 +570,43 @@ class OctoGenEngine:
         logger.info("Processing playlist '%s': %d songs to check", playlist_name, total)
         
         # Phase 1: Check library and collect songs that need downloading
-        for idx, rec in enumerate(recommendations[:max_songs], 1):
+        song_ids: List[str] = []
+        needs_download = []
+        
+        idx = 0
+        added = 0
+        recommendation_count = len(recommendations)
+        # Fill up to max_songs, keep scanning recommendations until you have enough unique/eligible tracks
+        while added < max_songs and idx < recommendation_count:
+            rec = recommendations[idx]
+            idx += 1
+        
             artist = (rec.get("artist") or "").strip()
             title = (rec.get("title") or "").strip()
-            
+        
             if not artist or not title:
                 continue
-            
-            # Check for duplicates
+        
             if self._is_duplicate(artist, title):
                 logger.debug("Skipping duplicate: %s - %s", artist, title)
                 self.stats["songs_skipped_duplicate"] += 1
                 continue
-            
-            # Progress logging
-            if idx % 10 == 0 or idx == 1 or idx == total:
-                logger.info("  [%s] Checking library: %d/%d", playlist_name, idx, total)
-            
-            # Search in library first
+        
+            # Log progress based on 'added', not idx
+            if added % 10 == 0 or added == 0 or added + 1 == max_songs:
+                logger.info("  [%s] Checking library: %d/%d", playlist_name, added + 1, max_songs)
+        
             song_id = self.nd.search_song(artist, title)
             if song_id:
                 if not self._check_and_skip_low_rating(song_id, artist, title):
                     song_ids.append(song_id)
                     self.stats["songs_found"] += 1
+                    added += 1
             else:
-                # Mark for download
                 needs_download.append((artist, title))
+                added += 1   
+        
+        # Continue as you already do, with downloads for needs_download, batch scanning, etc.
         
         # Phase 2: Batch download all missing songs
         if needs_download and not self.dry_run:
@@ -695,17 +706,30 @@ class OctoGenEngine:
         audiomuse_actual_count = 0
         if self.audiomuse_client:
             logger.debug(f"Requesting {audiomuse_songs_count} songs from AudioMuse-AI for Daily Mix {mix_number}")
-            audiomuse_request = f"{characteristics} {genre_focus} music"
-            logger.debug(f"AudioMuse request: '{audiomuse_request}'")
-            audiomuse_songs = self.audiomuse_client.generate_playlist(
-                user_request=audiomuse_request,
-                num_songs=audiomuse_songs_count
-            )
-            
+            # --- Begin multi-version prompt logic ---
+            modifiers = characteristics.split() if characteristics else []
+            prompt_variants = []
+            if characteristics and genre_focus:
+                prompt_variants.append(f"{characteristics} {genre_focus} music")  # all modifiers
+            if modifiers:
+                prompt_variants.append(f"{modifiers[0]} {genre_focus} music")     # first modifier
+            if genre_focus:
+                prompt_variants.append(f"{genre_focus} music")                    # genre only
+                prompt_variants.append(f"{genre_focus}")                          # genre only, no "music"
+            audiomuse_songs = []
+            logger.debug(f"AudioMuse prompt attempts: {prompt_variants}")
+            for prompt in prompt_variants:
+                logger.debug(f"AudioMuse request: '{prompt}'")
+                audiomuse_songs = self.audiomuse_client.generate_playlist(
+                    user_request=prompt,
+                    num_songs=audiomuse_songs_count
+                )
+                if len(audiomuse_songs) >= 3:    # threshold; adjust as needed
+                    logger.info(f"AudioMuse prompt '{prompt}' yielded {len(audiomuse_songs)} songs")
+                    break
             # Convert AudioMuse format to Octogen format
             for song in audiomuse_songs:
                 songs.append({"artist": song.get('artist', ''), "title": song.get('title', '')})
-            
             audiomuse_actual_count = len(songs)
             label = f"Daily Mix {mix_number}" if mix_number in [1,2,3,4,5,6] else playlist_name
             logger.info(f"📻 {label}: Got {audiomuse_actual_count} songs from AudioMuse-AI")
