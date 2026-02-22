@@ -791,10 +791,13 @@ class OctoGenEngine:
         # If AudioMuse returned fewer songs, request more from LLM to reach target
         num_llm_songs = llm_songs_count if self.audiomuse_client else 30
         if self.audiomuse_client and audiomuse_actual_count < audiomuse_songs_count:
-            # Request extra LLM songs to compensate
-            shortfall = audiomuse_songs_count - audiomuse_actual_count
-            num_llm_songs = llm_songs_count + shortfall
-            logger.info(f"🔄 AudioMuse returned {audiomuse_actual_count}/{audiomuse_songs_count} songs, requesting {num_llm_songs} from LLM")
+                # Request extra LLM songs to compensate, plus a buffer for version
+                # mismatches and download failures
+                shortfall = audiomuse_songs_count - audiomuse_actual_count
+                buffer = max(15, int((shortfall + llm_songs_count) * 0.5))
+                num_llm_songs = llm_songs_count + shortfall + buffer
+                logger.info(f"🔄 AudioMuse returned {audiomuse_actual_count}/{audiomuse_songs_count} songs, "
+                            f"requesting {num_llm_songs} from LLM (includes {buffer} song buffer)")
         
         logger.debug(f"Requesting {num_llm_songs} songs from LLM for Daily Mix {mix_number}")
         # We'll use the AI engine to generate just the LLM portion
