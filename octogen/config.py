@@ -86,7 +86,7 @@ def load_config_from_env() -> Dict:
             "max_albums_scan": int(os.getenv("MAX_ALBUMS_SCAN", "10000")),
             "scan_timeout": int(os.getenv("SCAN_TIMEOUT", "60")),
             "download_delay_seconds": int(os.getenv("DOWNLOAD_DELAY_SECONDS", "10")),
-            "post_scan_delay_seconds": int(os.getenv("POST_SCAN_DELAY_SECONDS", "3")),
+            "post_scan_delay_seconds": int(os.getenv("POST_SCAN_DELAY_SECONDS", "30")),
             "download_batch_size": int(os.getenv("DOWNLOAD_BATCH_SIZE", "5")),
             "download_concurrency": int(os.getenv("DOWNLOAD_CONCURRENCY", "3")),
         },
