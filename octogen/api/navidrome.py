@@ -411,19 +411,21 @@ class NavidromeAPI:
             Song ID if found, None otherwise
         """
         if mbid:
-            response = self._request("search3", {
-                "query": mbid,
-                "songCount": 5,
+            # Try a targeted artist+title search first, then validate MBID on the results
+            mbid_check_response = self._request("search3", {
+                "query": f'"{artist}" "{title}"',
+                "songCount": 10,
                 "artistCount": 0,
                 "albumCount": 0
             })
-            if response:
-                for song in response.get("searchResult3", {}).get("song", []):
+            if mbid_check_response:
+                for song in mbid_check_response.get("searchResult3", {}).get("song", []):
                     if song.get("musicBrainzId") == mbid:
-                        logger.debug("MBID exact match: %s - %s", 
+                        logger.debug("MBID exact match: %s - %s",
                                      song.get("artist"), song.get("title"))
                         return song["id"]
             logger.debug("MBID lookup missed for %s, falling through to fuzzy", mbid)
+
     
         # Step 1: Normalize search terms
         search_artist_norm = self._normalize_for_comparison(artist, preserve_version=False)
