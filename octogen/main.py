@@ -562,97 +562,120 @@ class OctoGenEngine:
         recommendations: List[Dict],
         max_songs: int = 100,
     ) -> List[str]:
-        """Process recommendations with batched scanning."""
+        """Process recommendations with strict-fill and per-playlist dedup.
+
+        Keeps scanning/downloading in up to 3 rounds until len(song_ids) == max_songs
+        or all candidates are exhausted.  Dedup is scoped per-playlist so every
+        playlist can independently fill to max_songs.
+        """
+        MAX_ROUNDS = 3
+        # Give ourselves a generous candidate pool (5x target) to survive skips/failures
+        max_candidates = min(len(recommendations), max(50, max_songs * 5))
+
         song_ids: List[str] = []
-        needs_download = []
-        total = min(len(recommendations), max_songs)
-        
-        logger.info("Processing playlist '%s': %d songs to check", playlist_name, total)
-        
-        # Phase 1: Check library and collect songs that need downloading
-        song_ids: List[str] = []
-        needs_download = []
-        
+        playlist_seen: Set[Tuple[str, str]] = set()   # per-playlist dedup
+        download_attempted: Set[Tuple[str, str]] = set()
         idx = 0
-        added = 0
-        recommendation_count = len(recommendations)
-        # Fill up to max_songs, keep scanning recommendations until you have enough unique/eligible tracks
-        while added < max_songs and idx < recommendation_count:
-            rec = recommendations[idx]
-            idx += 1
-        
-            artist = (rec.get("artist") or "").strip()
-            title = (rec.get("title") or "").strip()
-        
-            if not artist or not title:
-                continue
-        
-            if self._is_duplicate(artist, title):
-                logger.debug("Skipping duplicate: %s - %s", artist, title)
-                self.stats["songs_skipped_duplicate"] += 1
-                continue
-        
-            # Log progress based on 'added', not idx
-            if added % 10 == 0 or added == 0 or added + 1 == max_songs:
-                logger.info("  [%s] Checking library: %d/%d", playlist_name, added + 1, max_songs)
-        
-            song_id = self.nd.search_song(artist, title)
-            if song_id:
-                if not self._check_and_skip_low_rating(song_id, artist, title):
-                    song_ids.append(song_id)
-                    self.stats["songs_found"] += 1
-                    added += 1
-            else:
-                needs_download.append((artist, title))
-                added += 1   
-        
-        # Continue as you already do, with downloads for needs_download, batch scanning, etc.
-        
-        # Phase 2: Batch download all missing songs
-        if needs_download and not self.dry_run:
-            logger.info("  [%s] Downloading %d missing songs in batch...", playlist_name, len(needs_download))
-            
-            downloaded_count = 0
-            for idx, (artist, title) in enumerate(needs_download, 1):
-                if idx % 5 == 0 or idx == 1 or idx == len(needs_download):
-                    logger.info("  [%s] Download progress: %d/%d", playlist_name, idx, len(needs_download))
-                
-                success, _result = self.octo.search_and_trigger_download(artist, title)
-                if success:
-                    downloaded_count += 1
-            
-            if downloaded_count > 0:
-                # Single scan for all downloads
-                logger.info("  [%s] Waiting for downloads to settle...", playlist_name)
-                wait_time = self.download_delay * min(downloaded_count, 5)  # Scale wait time, max 5x
-                time.sleep(wait_time)
-                
-                logger.info("  [%s] Triggering library scan...", playlist_name)
-                self.nd.trigger_scan()
-                self.nd.wait_for_scan()
-                time.sleep(self.post_scan_delay)
-                
-                # Phase 3: Re-search for downloaded songs
-                logger.info("  [%s] Checking for downloaded songs...", playlist_name)
-                for artist, title in needs_download:
-                    song_id = self.nd.search_song(artist, title)
-                    if song_id:
-                        if not self._check_and_skip_low_rating(song_id, artist, title):
+
+        def seen_key(a: str, t: str) -> Tuple[str, str]:
+            return (a.lower().strip(), t.lower().strip())
+
+        logger.info("Processing playlist '%s': %d songs to check (target=%d, max_candidates=%d)",
+                    playlist_name, len(recommendations), max_songs, max_candidates)
+
+        for round_num in range(1, MAX_ROUNDS + 1):
+            needs_download: List[Tuple[str, str]] = []
+
+            # Phase 1: scan candidates until we have enough confirmed + pending to hit target
+            while idx < max_candidates and (len(song_ids) + len(needs_download)) < max_songs:
+                rec = recommendations[idx]
+                idx += 1
+
+                artist = (rec.get("artist") or "").strip()
+                title = (rec.get("title") or "").strip()
+                if not artist or not title:
+                    continue
+
+                k = seen_key(artist, title)
+                if k in playlist_seen:
+                    self.stats["songs_skipped_duplicate"] += 1
+                    continue
+                playlist_seen.add(k)
+
+                checked = len(song_ids) + len(needs_download) + 1
+                if checked % 10 == 1 or checked == max_songs:
+                    logger.info("  [%s] Checking library: %d/%d", playlist_name, checked, max_songs)
+
+                song_id = self.nd.search_song(artist, title)
+                if song_id:
+                    if not self._check_and_skip_low_rating(song_id, artist, title):
+                        song_ids.append(song_id)
+                        self.stats["songs_found"] += 1
+                else:
+                    similar_song_id = self.nd.check_for_similar_song(artist, title)
+                    if similar_song_id:
+                        if not self._check_and_skip_low_rating(similar_song_id, artist, title):
+                            song_ids.append(similar_song_id)
+                            self.stats["songs_found"] += 1
+                            self.stats["duplicates_prevented"] += 1
+                    elif not self.dry_run and k not in download_attempted:
+                        needs_download.append((artist, title))
+                        download_attempted.add(k)
+
+            if len(song_ids) >= max_songs:
+                break
+
+            # Phase 2: batch download everything collected this round
+            if needs_download and not self.dry_run:
+                logger.info("  [%s] Round %d/%d: Downloading %d missing songs in batch...",
+                            playlist_name, round_num, MAX_ROUNDS, len(needs_download))
+
+                downloaded_count = 0
+                for d_idx, (artist, title) in enumerate(needs_download, 1):
+                    if d_idx % 5 == 0 or d_idx == 1 or d_idx == len(needs_download):
+                        logger.info("  [%s] Download progress: %d/%d", playlist_name, d_idx, len(needs_download))
+                    success, _result = self.octo.search_and_trigger_download(artist, title)
+                    if success:
+                        downloaded_count += 1
+
+                if downloaded_count > 0:
+                    logger.info("  [%s] Waiting for downloads to settle...", playlist_name)
+                    wait_time = self.download_delay * min(downloaded_count, 5)
+                    time.sleep(wait_time)
+
+                    logger.info("  [%s] Triggering library scan...", playlist_name)
+                    self.nd.trigger_scan()
+                    self.nd.wait_for_scan()
+                    time.sleep(self.post_scan_delay)
+
+                    logger.info("  [%s] Checking for downloaded songs...", playlist_name)
+                    for artist, title in needs_download:
+                        if len(song_ids) >= max_songs:
+                            break
+                        song_id = self.nd.search_song(artist, title)
+                        if song_id and not self._check_and_skip_low_rating(song_id, artist, title):
                             song_ids.append(song_id)
                             self.stats["songs_downloaded"] += 1
-                    else:
-                        self.stats["songs_failed"] += 1
-            else:
-                logger.warning("  [%s] All %d download attempts failed", playlist_name, len(needs_download))
-                self.stats["songs_failed"] += len(needs_download)
-        
-        elif needs_download and self.dry_run:
-            logger.info("  [%s] [DRY RUN] Would download %d songs", playlist_name, len(needs_download))
-        
-        logger.info("  [%s] Complete: %d/%d songs added to playlist", 
-                    playlist_name, len(song_ids), total)
-        
-        return song_ids
+                        elif not song_id:
+                            self.stats["songs_failed"] += 1
+                else:
+                    logger.warning("  [%s] All %d download attempts failed", playlist_name, len(needs_download))
+                    self.stats["songs_failed"] += len(needs_download)
+
+            elif needs_download and self.dry_run:
+                logger.info("  [%s] [DRY RUN] Would download %d songs", playlist_name, len(needs_download))
+
+            if not needs_download or idx >= max_candidates:
+                break  # nothing left to try
+
+        if len(song_ids) < max_songs:
+            logger.warning("  [%s] Underfilled: %d/%d songs (pool exhausted after %d candidates)",
+                           playlist_name, len(song_ids), max_songs, idx)
+        else:
+            logger.info("  [%s] Complete: %d/%d songs added to playlist",
+                        playlist_name, len(song_ids), max_songs)
+
+        return song_ids[:max_songs]
 
 
 
@@ -716,21 +739,30 @@ class OctoGenEngine:
             if genre_focus:
                 prompt_variants.append(f"{genre_focus} music")                    # genre only
                 prompt_variants.append(f"{genre_focus}")                          # genre only, no "music"
-            audiomuse_songs = []
             logger.debug(f"AudioMuse prompt attempts: {prompt_variants}")
+            audiomuse_collected: List[Dict] = []
+            audiomuse_seen: Set[Tuple[str, str]] = set()
             for prompt in prompt_variants:
-                logger.debug(f"AudioMuse request: '{prompt}'")
-                audiomuse_songs = self.audiomuse_client.generate_playlist(
-                    user_request=prompt,
-                    num_songs=audiomuse_songs_count
-                )
-                if len(audiomuse_songs) >= 3:    # threshold; adjust as needed
-                    logger.info(f"AudioMuse prompt '{prompt}' yielded {len(audiomuse_songs)} songs")
+                remaining = audiomuse_songs_count - len(audiomuse_collected)
+                if remaining <= 0:
                     break
-            # Convert AudioMuse format to Octogen format
-            for song in audiomuse_songs:
-                songs.append({"artist": song.get('artist', ''), "title": song.get('title', '')})
-            audiomuse_actual_count = len(songs)
+                logger.debug(f"AudioMuse request: '{prompt}' (need {remaining} more)")
+                batch = self.audiomuse_client.generate_playlist(
+                    user_request=prompt,
+                    num_songs=remaining
+                ) or []
+                logger.info(f"AudioMuse prompt '{prompt}' yielded {len(batch)} songs")
+                for s in batch:
+                    a = (s.get("artist") or "").strip()
+                    t = (s.get("title") or "").strip()
+                    k = (a.lower(), t.lower())
+                    if a and t and k not in audiomuse_seen:
+                        audiomuse_seen.add(k)
+                        audiomuse_collected.append({"artist": a, "title": t})
+                if len(audiomuse_collected) >= audiomuse_songs_count:
+                    break
+            songs.extend(audiomuse_collected)
+            audiomuse_actual_count = len(audiomuse_collected)
             label = f"Daily Mix {mix_number}" if mix_number in [1,2,3,4,5,6] else playlist_name
             logger.info(f"📻 {label}: Got {audiomuse_actual_count} songs from AudioMuse-AI")
             if audiomuse_actual_count < audiomuse_songs_count:
