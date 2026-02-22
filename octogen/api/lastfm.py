@@ -98,7 +98,8 @@ class LastFMAPI:
                 for track in tracks_response["toptracks"].get("track", []):
                     recommendations.append({
                         "artist": track["artist"]["name"],
-                        "title": track["name"]
+                        "title": track["name"],
+                        "mbid": mbid,
                     })
                     if len(recommendations) >= limit:
                         break
