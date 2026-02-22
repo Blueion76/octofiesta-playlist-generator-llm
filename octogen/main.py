@@ -507,7 +507,7 @@ class OctoGenEngine:
 
         # Priority 2: Search library thoroughly with fuzzy matching
         logger.debug("Checking library for: %s - %s", artist, title)
-        song_id = self.nd.search_song(artist, title)
+        song_id = self.nd.search_song(artist, title, mbid=mbid)
 
         if song_id:
             if self._check_and_skip_low_rating(song_id, artist, title):
@@ -564,50 +564,58 @@ class OctoGenEngine:
         max_songs: int = 100,
     ) -> List[str]:
         """Process recommendations with strict-fill and per-playlist dedup.
-
+    
         Keeps scanning/downloading in up to 3 rounds until len(song_ids) == max_songs
-        or all candidates are exhausted.  Dedup is scoped per-playlist so every
+        or all candidates are exhausted. Dedup is scoped per-playlist so every
         playlist can independently fill to max_songs.
         """
         MAX_ROUNDS = 3
+    
         # Give ourselves a generous candidate pool (5x target) to survive skips/failures
         max_candidates = min(len(recommendations), max(50, max_songs * 5))
-
+    
         song_ids: List[str] = []
-        playlist_seen: Set[Tuple[str, str]] = set()   # per-playlist dedup
+        playlist_seen: Set[Tuple[str, str]] = set()  # per-playlist dedup
         download_attempted: Set[Tuple[str, str]] = set()
+    
         idx = 0
-
+    
         def seen_key(a: str, t: str) -> Tuple[str, str]:
             return (a.lower().strip(), t.lower().strip())
-
-        logger.info("Processing playlist '%s': %d songs to check (target=%d, max_candidates=%d)",
-                    playlist_name, len(recommendations), max_songs, max_candidates)
-
+    
+        logger.info(
+            "Processing playlist '%s': %d songs to check (target=%d, max_candidates=%d)",
+            playlist_name, len(recommendations), max_songs, max_candidates
+        )
+    
         for round_num in range(1, MAX_ROUNDS + 1):
-            needs_download: List[Tuple[str, str]] = []
-
+            needs_download: List[Tuple[str, str, Optional[str]]] = []
+    
             # Phase 1: scan candidates until we have enough confirmed + pending to hit target
             while idx < max_candidates and (len(song_ids) + len(needs_download)) < max_songs:
                 rec = recommendations[idx]
                 idx += 1
-
+    
                 artist = (rec.get("artist") or "").strip()
                 title = (rec.get("title") or "").strip()
+                mbid = rec.get("mbid")  # <-- NEW
+    
                 if not artist or not title:
                     continue
-
+    
                 k = seen_key(artist, title)
                 if k in playlist_seen:
                     self.stats["songs_skipped_duplicate"] += 1
                     continue
                 playlist_seen.add(k)
-
+    
                 checked = len(song_ids) + len(needs_download) + 1
                 if checked % 10 == 1 or checked == max_songs:
-                    logger.info("  [%s] Checking library: %d/%d", playlist_name, checked, max_songs)
-
-                song_id = self.nd.search_song(artist, title)
+                    logger.info(" [%s] Checking library: %d/%d", playlist_name, checked, max_songs)
+    
+                # MBID-aware lookup (falls back internally if mbid is None or misses)
+                song_id = self.nd.search_song(artist, title, mbid=mbid)  
+    
                 if song_id:
                     if not self._check_and_skip_low_rating(song_id, artist, title):
                         song_ids.append(song_id)
@@ -620,62 +628,72 @@ class OctoGenEngine:
                             self.stats["songs_found"] += 1
                             self.stats["duplicates_prevented"] += 1
                     elif not self.dry_run and k not in download_attempted:
-                        needs_download.append((artist, title))
+                        needs_download.append((artist, title, mbid))  
                         download_attempted.add(k)
-
-            if len(song_ids) >= max_songs:
-                break
-
+    
+                if len(song_ids) >= max_songs:
+                    break
+    
             # Phase 2: batch download everything collected this round
             if needs_download and not self.dry_run:
-                logger.info("  [%s] Round %d/%d: Downloading %d missing songs in batch...",
-                            playlist_name, round_num, MAX_ROUNDS, len(needs_download))
-
+                logger.info(
+                    " [%s] Round %d/%d: Downloading %d missing songs in batch...",
+                    playlist_name, round_num, MAX_ROUNDS, len(needs_download)
+                )
+    
                 downloaded_count = 0
-                for d_idx, (artist, title) in enumerate(needs_download, 1):
+                for d_idx, (artist, title, _mbid) in enumerate(needs_download, 1):
                     if d_idx % 5 == 0 or d_idx == 1 or d_idx == len(needs_download):
-                        logger.info("  [%s] Download progress: %d/%d", playlist_name, d_idx, len(needs_download))
+                        logger.info(" [%s] Download progress: %d/%d", playlist_name, d_idx, len(needs_download))
+    
                     success, _result = self.octo.search_and_trigger_download(artist, title)
                     if success:
                         downloaded_count += 1
-
+    
                 if downloaded_count > 0:
-                    logger.info("  [%s] Waiting for downloads to settle...", playlist_name)
+                    logger.info(" [%s] Waiting for downloads to settle...", playlist_name)
                     wait_time = self.download_delay * min(downloaded_count, 5)
                     time.sleep(wait_time)
-
-                    logger.info("  [%s] Triggering library scan...", playlist_name)
+    
+                    logger.info(" [%s] Triggering library scan...", playlist_name)
                     self.nd.trigger_scan()
                     self.nd.wait_for_scan()
                     time.sleep(self.post_scan_delay)
-
-                    logger.info("  [%s] Checking for downloaded songs...", playlist_name)
-                    for artist, title in needs_download:
+    
+                    logger.info(" [%s] Checking for downloaded songs...", playlist_name)
+                    for artist, title, mbid in needs_download:
                         if len(song_ids) >= max_songs:
                             break
-                        song_id = self.nd.search_song(artist, title)
+    
+                        # MBID-aware re-check after scan
+                        song_id = self.nd.search_song(artist, title, mbid=mbid)  
+    
                         if song_id and not self._check_and_skip_low_rating(song_id, artist, title):
                             song_ids.append(song_id)
                             self.stats["songs_downloaded"] += 1
                         elif not song_id:
                             self.stats["songs_failed"] += 1
                 else:
-                    logger.warning("  [%s] All %d download attempts failed", playlist_name, len(needs_download))
+                    logger.warning(" [%s] All %d download attempts failed", playlist_name, len(needs_download))
                     self.stats["songs_failed"] += len(needs_download)
-
+    
             elif needs_download and self.dry_run:
-                logger.info("  [%s] [DRY RUN] Would download %d songs", playlist_name, len(needs_download))
-
+                logger.info(" [%s] [DRY RUN] Would download %d songs", playlist_name, len(needs_download))
+    
             if not needs_download or idx >= max_candidates:
                 break  # nothing left to try
-
+    
         if len(song_ids) < max_songs:
-            logger.warning("  [%s] Underfilled: %d/%d songs (pool exhausted after %d candidates)",
-                           playlist_name, len(song_ids), max_songs, idx)
+            logger.warning(
+                " [%s] Underfilled: %d/%d songs (pool exhausted after %d candidates)",
+                playlist_name, len(song_ids), max_songs, idx
+            )
         else:
-            logger.info("  [%s] Complete: %d/%d songs added to playlist",
-                        playlist_name, len(song_ids), max_songs)
-
+            logger.info(
+                " [%s] Complete: %d/%d songs added to playlist",
+                playlist_name, len(song_ids), max_songs
+            )
+    
         return song_ids[:max_songs]
 
 
@@ -1146,15 +1164,16 @@ CRITICAL RULES:
     
             if should_generate_regular and self.listenbrainz:
                 logger.info("Creating ListenBrainz 'Created For You' playlists...")
+            
                 try:
                     playlists_before = self.stats["playlists_created"]
+            
                     lb_playlists = self.listenbrainz.get_created_for_you_playlists()
-                    
                     for lb_playlist in lb_playlists:
                         # The data is nested inside a "playlist" key
                         playlist_data = lb_playlist.get("playlist", {})
                         playlist_name = playlist_data.get("title", "Unknown")
-                        
+            
                         # Get the identifier from the nested structure
                         playlist_mbid = None
                         if "identifier" in playlist_data:
@@ -1164,71 +1183,77 @@ CRITICAL RULES:
                                 playlist_mbid = identifier.split("/")[-1]
                             elif isinstance(identifier, list) and len(identifier) > 0:
                                 playlist_mbid = identifier[0].split("/")[-1]
-                        
+            
                         if not playlist_mbid:
                             logger.error("Cannot find playlist ID for: %s", playlist_name)
                             continue
-                        
+            
                         # Determine if this is current week or last week
                         renamed_playlist = None
                         should_process = True
-                        
+            
                         if "Weekly Exploration" in playlist_name and "week of" in playlist_name:
                             try:
                                 # Extract the date string
                                 date_part = playlist_name.split("week of ")[1].split()[0]  # Gets "2026-02-09"
                                 playlist_date = datetime.strptime(date_part, "%Y-%m-%d")
-                                
+            
                                 # Calculate start of current week (Monday)
                                 today = datetime.now()
                                 start_of_this_week = today - timedelta(days=today.weekday())
                                 start_of_last_week = start_of_this_week - timedelta(days=7)
-                                
+            
                                 # Compare dates (ignoring time)
                                 playlist_week_start = playlist_date.replace(hour=0, minute=0, second=0, microsecond=0)
                                 this_week_start = start_of_this_week.replace(hour=0, minute=0, second=0, microsecond=0)
                                 last_week_start = start_of_last_week.replace(hour=0, minute=0, second=0, microsecond=0)
-                                
+            
                                 if playlist_week_start == this_week_start:
                                     renamed_playlist = "LB: Weekly Exploration"
                                 elif playlist_week_start == last_week_start:
                                     renamed_playlist = "LB: Last Week's Exploration"
                                 else:
                                     # Older than 2 weeks - skip
-                                    logger.info("Skipping old Weekly Exploration: %s (keeping only last 2 weeks)", playlist_name)
+                                    logger.info(
+                                        "Skipping old Weekly Exploration: %s (keeping only last 2 weeks)",
+                                        playlist_name
+                                    )
                                     should_process = False
-                            except Exception as e:
+            
+                            except Exception:
                                 logger.warning("Could not parse date from playlist: %s", playlist_name)
                                 renamed_playlist = f"LB: {playlist_name}"
+            
                         else:
                             # Non-weekly playlists (Daily Jams, etc.)
                             renamed_playlist = f"LB: {playlist_name}"
-                        
+            
                         if not should_process:
                             continue
-                        
+            
                         logger.info("Processing: %s -> %s (MBID: %s)", playlist_name, renamed_playlist, playlist_mbid)
+            
                         tracks = self.listenbrainz.get_playlist_tracks(playlist_mbid)
-                        
+            
                         # Process songs with download support (limit to 50)
-                        found_ids = []
+                        found_ids: List[str] = []
                         for track in tracks[:50]:
-                            # Use the same processing as AI recommendations (includes download)
                             song_id = self._process_single_recommendation(track)
                             if song_id:
                                 found_ids.append(song_id)
-                        
+            
                         if found_ids:
-                            self.nd.create_playlist(renamed_playlist, found_ids)
-                    
+                            if self.nd.create_playlist(renamed_playlist, found_ids):
+                                self.stats["playlists_created"] += 1  
+            
                     playlists_created = self.stats["playlists_created"] - playlists_before
-                    
                     self.service_tracker.record(
                         "listenbrainz",
                         success=True,
                         playlists=playlists_created
                     )
                     logger.info("ListenBrainz service succeeded: %d playlists", playlists_created)
+            
                 except Exception as e:
                     self.service_tracker.record(
                         "listenbrainz",
@@ -1236,12 +1261,13 @@ CRITICAL RULES:
                         reason=str(e)[:100]
                     )
                     logger.warning("ListenBrainz service failed: %s", e)
+
     
             # Record successful regular playlist generation
             if should_generate_regular:
                 record_regular_playlist_generation(BASE_DIR)
     
-            # Time-Period Playlist Generation (NEW FEATURE)
+            # Time-Period Playlist Generation 
             try:
                 from octogen.scheduler.timeofday import (
                     should_generate_period_playlist_now,
