@@ -53,7 +53,7 @@ services:
       # ============================================================================
       # Cron expression for automatic scheduling (e.g., "0 2 * * *" for daily at 2 AM)
       # Leave unset or use "manual" to disable scheduling
-      SCHEDULE_CRON: ${SCHEDULE_CRON:-0 2,6,12,16,22 * * *}
+      SCHEDULE_CRON: ${SCHEDULE_CRON:-0 2,4,10,16,22 * * *}
       
       # Timezone for scheduled runs (IANA timezone name)
       TZ: ${TZ:-America/Chicago}
@@ -132,8 +132,8 @@ services:
       
       # Time period boundaries (24-hour format)
       TIMEOFDAY_MORNING_START: ${TIMEOFDAY_MORNING_START:-4}
-      TIMEOFDAY_MORNING_END: ${TIMEOFDAY_MORNING_END:-12}
-      TIMEOFDAY_AFTERNOON_START: ${TIMEOFDAY_AFTERNOON_START:-12}
+      TIMEOFDAY_MORNING_END: ${TIMEOFDAY_MORNING_END:-10}
+      TIMEOFDAY_AFTERNOON_START: ${TIMEOFDAY_AFTERNOON_START:-10}
       TIMEOFDAY_AFTERNOON_END: ${TIMEOFDAY_AFTERNOON_END:-16}
       TIMEOFDAY_EVENING_START: ${TIMEOFDAY_EVENING_START:-16}
       TIMEOFDAY_EVENING_END: ${TIMEOFDAY_EVENING_END:-22}
