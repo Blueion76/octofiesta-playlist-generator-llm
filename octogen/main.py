@@ -494,7 +494,8 @@ class OctoGenEngine:
         """Process a single recommendation and return song ID if successful."""
         artist = (rec.get("artist") or "").strip()
         title = (rec.get("title") or "").strip()
-
+        mbid   = rec.get("mbid")
+        
         if not artist or not title:
             return None
 
