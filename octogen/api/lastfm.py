@@ -96,13 +96,18 @@ class LastFMAPI:
                     continue
 
                 for track in tracks_response["toptracks"].get("track", []):
+                    raw_mbid = track.get("mbid", "")
+                    track_mbid = raw_mbid if raw_mbid else None  
+                
                     recommendations.append({
                         "artist": track["artist"]["name"],
                         "title": track["name"],
-                        "mbid": mbid,
+                        "mbid": track_mbid,
                     })
+                
                     if len(recommendations) >= limit:
                         break
+
             if len(recommendations) >= limit:
                 break
 
