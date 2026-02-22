@@ -546,7 +546,7 @@ class OctoGenEngine:
         self.nd.wait_for_scan()
         time.sleep(self.post_scan_delay)
 
-        song_id = self.nd.search_song(artist, title)
+        song_id = self.nd.search_song(artist, title, mbid=mbid)
 
         if song_id:
             if self._check_and_skip_low_rating(song_id, artist, title):
