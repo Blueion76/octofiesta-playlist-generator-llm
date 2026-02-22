@@ -214,8 +214,8 @@ class OctoGenEngine:
                 "album_batch_size": self._get_env_int("PERF_ALBUM_BATCH_SIZE", 500),
                 "max_albums_scan": self._get_env_int("PERF_MAX_ALBUMS_SCAN", 10000),
                 "scan_timeout": self._get_env_int("PERF_SCAN_TIMEOUT", 60),
-                "download_delay_seconds": self._get_env_int("PERF_DOWNLOAD_DELAY", 6),
-                "post_scan_delay_seconds": self._get_env_int("PERF_POST_SCAN_DELAY", 10)
+                "download_delay_seconds": self._get_env_int("PERF_DOWNLOAD_DELAY", 10),
+                "post_scan_delay_seconds": self._get_env_int("PERF_POST_SCAN_DELAY", 30)
             },
             "lastfm": {
                 "enabled": self._get_env_bool("LASTFM_ENABLED", False),
