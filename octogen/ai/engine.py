@@ -696,6 +696,20 @@ CRITICAL RULES:
             ]
             all_playlists[playlist_name] = valid_songs
 
+        EXPECTED_PLAYLISTS = {
+            "Discovery", "Daily Mix 1", "Daily Mix 2", "Daily Mix 3",
+            "Daily Mix 4", "Daily Mix 5", "Daily Mix 6",
+            "Chill Vibes", "Workout Energy", "Focus Flow", "Drive Time"
+        }
+        
+        # Filter out any hallucinated extra playlists
+        unexpected = [k for k in all_playlists if k not in EXPECTED_PLAYLISTS]
+        if unexpected:
+            logger.warning("AI returned unexpected playlists (filtered): %s", unexpected)
+            for k in unexpected:
+                del all_playlists[k]
+
+        
         self.response_cache = all_playlists
         self._record_ai_call()
         total = sum(len(songs) for songs in all_playlists.values())
