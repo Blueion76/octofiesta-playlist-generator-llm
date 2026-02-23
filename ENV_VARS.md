@@ -769,7 +769,7 @@ PERF_SCAN_TIMEOUT=60
 
 ### PERF_DOWNLOAD_DELAY
 **Description**: Delay between downloads (seconds)  
-**Default**: `6`  
+**Default**: `10`  
 **Range**: `1` to `30`  
 **Example**:
 ```bash

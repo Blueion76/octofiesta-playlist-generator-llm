@@ -400,7 +400,7 @@ class NavidromeAPI:
         title_ratio = difflib.SequenceMatcher(None, search_title, result_title).ratio()
         return (artist_ratio * 0.5) + (title_ratio * 0.5)
 
-    def search_song(self, artist: str, title: str) -> Optional[str]:
+    def search_song(self, artist: str, title: str, mbid: str = None) -> Optional[str]:
         """Search for a song with fuzzy matching and version detection.
         
         Args:
@@ -410,8 +410,24 @@ class NavidromeAPI:
         Returns:
             Song ID if found, None otherwise
         """
-        
-        # Normalize search terms
+        if mbid:
+            # Try a targeted artist+title search first, then validate MBID on the results
+            mbid_check_response = self._request("search3", {
+                "query": f'"{artist}" "{title}"',
+                "songCount": 10,
+                "artistCount": 0,
+                "albumCount": 0
+            })
+            if mbid_check_response:
+                for song in mbid_check_response.get("searchResult3", {}).get("song", []):
+                    if song.get("musicBrainzId") == mbid:
+                        logger.debug("MBID exact match: %s - %s",
+                                     song.get("artist"), song.get("title"))
+                        return song["id"]
+            logger.debug("MBID lookup missed for %s, falling through to fuzzy", mbid)
+
+    
+        # Step 1: Normalize search terms
         search_artist_norm = self._normalize_for_comparison(artist, preserve_version=False)
         search_title_norm = self._normalize_for_comparison(title, preserve_version=False)
         search_version = self._has_version_marker(title)
