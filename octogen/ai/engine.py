@@ -515,7 +515,22 @@ CRITICAL RULES:
                 logger.warning("Thinking budget nearly exhausted (%d/%d tokens)",
                              thoughts, thinking_budget)
 
+        # === FIX START ===
+        # Check for empty response
+        if not response.text or response.text.strip() == "":
+            logger.error("Gemini returned empty response")
+            raise ValueError("Empty response from Gemini")
+        
+        # Validate JSON structure
+        try:
+            json.loads(response.text)
+        except json.JSONDecodeError as e:
+            logger.error(f"Gemini returned invalid JSON: {e}")
+            logger.debug(f"Problematic response start: {response.text[:500]}")
+            raise ValueError("Invalid JSON response from Gemini") from e
+            
         return response.text
+        # === FIX END ===
         
     def _generate_with_openai(
         self,
