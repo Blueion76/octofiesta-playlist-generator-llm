@@ -788,7 +788,7 @@ PERF_DOWNLOAD_DELAY=6
 **Range**: `1` to `10`  
 **Example**:
 ```bash
-PERF_POST_SCAN_DELAY=2
+PERF_POST_SCAN_DELAY=5
 ```
 **Notes**:
 - Ensures scan is fully complete before searching
